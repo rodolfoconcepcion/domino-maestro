@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dominó Maestro 3D - Réplica Fiel del Mockup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: #020704;
+      color: #ffffff;
+      user-select: none;
+    }
+    #webgl-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      z-index: 1;
+    }
+    /* Floating Glass HUD Panels */
+    .glass-hud {
+      background: rgba(14, 25, 20, 0.72);
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 18px;
+      box-shadow: 
+        0 24px 60px rgba(0, 0, 0, 0.8),
+        inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    }
+    .glass-section {
+      background: rgba(6, 14, 10, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+    }
+    .mat-cell {
+      height: 22px;
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .mat-emerald { background: #10b981; color: #032b18; }
+    .mat-amber { background: #f59e0b; color: #451a03; }
+  </style>
+</head>
+<body>
+
+  <!-- 3D WEBGL CANVAS -->
+  <canvas id="webgl-canvas"></canvas>
+
+  <!-- =========================================================================
+       TOP APPLICATION BAR
+       ========================================================================= -->
+  <header class="fixed top-0 left-0 right-0 h-14 z-30 flex items-center justify-between px-6 bg-[#040d08]/85 backdrop-blur-md border-b border-white/10 pointer-events-auto">
+    <div class="flex items-center space-x-3">
+      <button class="text-zinc-400 hover:text-white transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+      </button>
+      <div class="flex items-center space-x-2">
+        <span class="font-extrabold tracking-wider text-sm sm:text-base text-white">DOMINÓ MAESTRO</span>
+        <span class="text-sm">🇩🇴</span>
+      </div>
+    </div>
+
+    <!-- Match Scoreboard -->
+    <div class="flex items-center space-x-3 px-4 py-1.5 rounded-2xl bg-black/55 border border-white/10 backdrop-blur-md shadow-xl">
+      <div class="flex items-center space-x-1.5">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span class="text-xs font-black tracking-widest text-emerald-400">LIVE</span>
+      </div>
+      <div class="h-3.5 w-px bg-white/20"></div>
+      <div class="text-center">
+        <div class="text-[9px] uppercase font-bold tracking-widest text-zinc-400">Live tournament score</div>
+        <div class="text-lg font-black text-white font-mono tracking-wider leading-none">154 <span class="text-zinc-500">-</span> 120</div>
+      </div>
+      <div class="h-3.5 w-px bg-white/20"></div>
+      <div class="text-center">
+        <div class="text-[9px] uppercase font-bold tracking-widest text-zinc-400">Round</div>
+        <div class="text-sm font-bold text-white font-mono leading-none">00:00:00</div>
+      </div>
+    </div>
+
+    <!-- Actions & Profile -->
+    <div class="flex items-center space-x-3 text-zinc-400">
+      <button class="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition">
+        <span class="text-xs font-bold">?</span>
+      </button>
+      <button class="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition relative">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+        <span class="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-400"></span>
+      </button>
+      <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 p-[1px] cursor-pointer">
+        <div class="w-full h-full rounded-full bg-zinc-900 flex items-center justify-center">
+          <span class="text-xs font-bold text-emerald-400">RC</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- =========================================================================
+       LEFT HUD: TACTICAL COACH (DOMINICAN MASTER DOCTRINE)
+       ========================================================================= -->
+  <aside class="fixed left-6 top-20 bottom-8 w-72 glass-hud p-5 flex flex-col justify-between z-20 pointer-events-auto">
+    <div>
+      <div class="flex items-center justify-between mb-1">
+        <h2 class="text-base font-extrabold text-white">Tactical Coach</h2>
+        <span class="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-[10px] font-extrabold text-emerald-400 tracking-wider">LIVE</span>
+      </div>
+      <p class="text-xs text-zinc-400 mb-5">Dominican domino strategy</p>
+
+      <!-- La Salida Strategy -->
+      <div class="glass-section p-3.5 mb-3.5">
+        <div class="text-xs font-bold text-zinc-200 mb-0.5">La Salida</div>
+        <div class="text-[10px] text-zinc-400 mb-2">Dominican domino strategy</div>
+        <div class="flex items-center justify-between text-[11px] font-bold font-mono mb-1.5">
+          <span class="text-emerald-400">39%</span>
+          <span class="text-amber-400">38%</span>
+        </div>
+        <div class="h-2 w-full bg-zinc-800 rounded-full overflow-hidden flex mb-2">
+          <div class="h-full bg-emerald-400 rounded-l-full" style="width: 39%;"></div>
+          <div class="h-full bg-amber-400 rounded-r-full" style="width: 38%;"></div>
+        </div>
+        <div class="flex justify-between text-[9px] text-zinc-500 font-mono px-0.5">
+          <span>1</span><span>3</span><span>5</span><span>10</span><span>5</span>
+        </div>
+      </div>
+
+      <!-- Partner Signaling -->
+      <div class="glass-section p-3.5 mb-3.5">
+        <div class="flex items-center justify-between text-xs font-bold mb-2">
+          <span class="text-zinc-200">Partner Signaling</span>
+          <span class="text-emerald-400 font-mono">57%</span>
+        </div>
+        <div class="h-2 w-full bg-zinc-800 rounded-full overflow-hidden">
+          <div class="h-full bg-emerald-400 rounded-full" style="width: 57%;"></div>
+        </div>
+      </div>
+
+      <!-- Tranca Risk -->
+      <div class="glass-section p-3.5">
+        <div class="flex items-center justify-between text-xs font-bold mb-2">
+          <span class="text-zinc-200">Tranca Risk</span>
+          <span class="text-red-400 font-mono">12%</span>
+        </div>
+        <div class="h-2 w-full bg-zinc-800 rounded-full overflow-hidden">
+          <div class="h-full bg-red-500 rounded-full" style="width: 12%;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Match Hard Action Button -->
+    <button class="w-full py-2.5 rounded-xl bg-zinc-800/80 hover:bg-zinc-700/80 border border-white/10 text-xs font-bold text-zinc-200 transition shadow-lg shadow-black/40">
+      Match hard
+    </button>
+  </aside>
+
+  <!-- =========================================================================
+       RIGHT HUD: 28-TILE PROBABILITY MATRIX
+       ========================================================================= -->
+  <aside class="fixed right-6 top-20 bottom-8 w-72 glass-hud p-5 flex flex-col justify-between z-20 pointer-events-auto">
+    <div>
+      <h2 class="text-base font-extrabold text-white mb-0.5">28-Tile Probability Matrix</h2>
+      <p class="text-xs text-zinc-400 mb-4">Tracker in lowest 28-Tile</p>
+
+      <!-- Emerald / Amber Toggles -->
+      <div class="grid grid-cols-2 gap-2 mb-4">
+        <button id="btn-emerald" class="py-1.5 rounded-lg bg-emerald-950/70 border border-emerald-500/40 text-emerald-400 text-xs font-bold">
+          Emerald
+        </button>
+        <button id="btn-amber" class="py-1.5 rounded-lg bg-amber-950/40 border border-amber-500/30 text-amber-400 text-xs font-bold">
+          Amber
+        </button>
+      </div>
+
+      <!-- 6x6 Matrix Grid matching the Mockup -->
+      <div class="grid grid-cols-6 gap-1 mb-5">
+        <div class="mat-cell mat-emerald">3</div><div class="mat-cell mat-emerald">5</div><div class="mat-cell mat-emerald">5</div><div class="mat-cell mat-amber">3</div><div class="mat-cell mat-amber">5</div><div class="mat-cell mat-amber">8</div>
+        <div class="mat-cell mat-emerald">3</div><div class="mat-cell mat-emerald">5</div><div class="mat-cell mat-emerald">5</div><div class="mat-cell mat-amber">8</div><div class="mat-cell mat-amber">10</div><div class="mat-cell mat-amber">8</div>
+        <div class="mat-cell mat-emerald">1</div><div class="mat-cell mat-emerald">5</div><div class="mat-cell mat-emerald">5</div><div class="mat-cell mat-amber">8</div><div class="mat-cell mat-amber">4</div><div class="mat-cell mat-amber">4</div>
+        <div class="mat-cell mat-emerald">1</div><div class="mat-cell mat-emerald">3</div><div class="mat-cell mat-emerald">5</div><div class="mat-cell mat-amber">4</div><div class="mat-cell mat-amber">3</div><div class="mat-cell mat-amber">4</div>
+        <div class="mat-cell mat-emerald">1</div><div class="mat-cell mat-emerald">2</div><div class="mat-cell mat-emerald">3</div><div class="mat-cell mat-amber">1</div><div class="mat-cell mat-amber">2</div><div class="mat-cell mat-amber">4</div>
+        <div class="mat-cell mat-emerald">1</div><div class="mat-cell mat-emerald">2</div><div class="mat-cell mat-emerald">3</div><div class="mat-cell mat-amber">1</div><div class="mat-cell mat-amber">2</div><div class="mat-cell mat-amber">2</div>
+      </div>
+
+      <!-- Live Counters -->
+      <div class="space-y-2.5 text-xs">
+        <div class="flex items-center justify-between text-zinc-300">
+          <span>Card Counting</span>
+          <span class="font-bold font-mono text-white">14</span>
+        </div>
+        <div class="flex items-center justify-between text-zinc-300">
+          <span>Neon emerald</span>
+          <span class="font-bold font-mono text-emerald-400">30</span>
+        </div>
+        <div>
+          <div class="flex items-center justify-between text-zinc-300 mb-1">
+            <span>Card counting</span>
+            <span class="font-bold font-mono text-amber-400">2/6</span>
+          </div>
+          <div class="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden">
+            <div class="h-full bg-amber-400 rounded-full" style="width: 33%;"></div>
+          </div>
+        </div>
+        <div class="flex items-center justify-between text-zinc-300">
+          <span>Card counting</span>
+          <span class="font-bold font-mono text-zinc-400">0</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- =========================================================================
+       THREE.JS 3D ENGINE (EXACT 2.5D PERSPECTIVE & TACTILE PBR ASSETS)
+       ========================================================================= -->
+  <script>
+    const canvas = document.getElementById('webgl-canvas');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x040b07);
+
+    // =========================================================================
+    // CAMERA: ELEVATED CASINO VIEW MATCHING THE MOCKUP
+    // =========================================================================
+    const camera = new THREE.PerspectiveCamera(34, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 15.2, 17.0);
+    camera.lookAt(0, 0.1, -0.6);
+
+    // LIGHTING (OVERHEAD TABLE LAMP + PBR SUNLIGHT + CASINO AMBIENCE)
+    const ambientLight = new THREE.AmbientLight(0x1a3326, 1.2);
+    scene.add(ambientLight);
+
+    // Warm overhead lamp centered above table (creates the soft casino spotlight)
+    const tableLamp = new THREE.SpotLight(0xfffae6, 2.0, 30, Math.PI / 3.2, 0.6, 1.2);
+    tableLamp.position.set(0, 14, 0);
+    tableLamp.target.position.set(0, 0, 0);
+    tableLamp.castShadow = true;
+    tableLamp.shadow.mapSize.width = 2048;
+    tableLamp.shadow.mapSize.height = 2048;
+    tableLamp.shadow.bias = -0.0003;
+    tableLamp.shadow.radius = 2.5;
+    scene.add(tableLamp);
+    scene.add(tableLamp.target);
+
+    const dirLight = new THREE.DirectionalLight(0xfff3dc, 0.8);
+    dirLight.position.set(6, 18, 10);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 2048;
+    dirLight.shadow.mapSize.height = 2048;
+    dirLight.shadow.bias = -0.0003;
+    dirLight.shadow.radius = 2.0;
+    scene.add(dirLight);
+
+    const rimLight = new THREE.DirectionalLight(0x409865, 0.4);
+    rimLight.position.set(-8, 6, -8);
+    scene.add(rimLight);
+
+    // =========================================================================
+    // CASINO TOURNAMENT TABLE FELT (EMERALD GREEN WITH SOFT VIGNETTE)
+    // =========================================================================
+    // Procedural Table Felt Texture
+    function createFeltTexture() {
+      const fc = document.createElement('canvas');
+      fc.width = 1024;
+      fc.height = 1024;
+      const ctx = fc.getContext('2d');
+
+      // Radial Felt Gradient
+      const grad = ctx.createRadialGradient(512, 512, 100, 512, 512, 512);
+      grad.addColorStop(0, '#194931');
+      grad.addColorStop(0.5, '#123724');
+      grad.addColorStop(0.85, '#0b2317');
+      grad.addColorStop(1, '#05110a');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 1024, 1024);
+
+      // Fiber specks
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.035)';
+      for (let i = 0; i < 4000; i++) {
+        const x = Math.random() * 1024;
+        const y = Math.random() * 1024;
+        ctx.fillRect(x, y, 1.5, 1.5);
+      }
+
+      const tex = new THREE.CanvasTexture(fc);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      return tex;
+    }
+
+    const feltMaterial = new THREE.MeshStandardMaterial({
+      map: createFeltTexture(),
+      roughness: 0.88,
+      metalness: 0.02,
+    });
+
+    // Table Felt Board
+    const tableGeo = new THREE.PlaneGeometry(16, 10.5);
+    const tableMesh = new THREE.Mesh(tableGeo, feltMaterial);
+    tableMesh.rotation.x = -Math.PI / 2;
+    tableMesh.receiveShadow = true;
+    scene.add(tableMesh);
+
+    // Table Beveled Outer Rail (Dark Gunmetal/Wood Rim)
+    const railMat = new THREE.MeshStandardMaterial({
+      color: 0x07110c,
+      roughness: 0.35,
+      metalness: 0.15,
+    });
+    const railGeo = new THREE.BoxGeometry(16.4, 0.3, 10.9);
+    const railMesh = new THREE.Mesh(railGeo, railMat);
+    railMesh.position.set(0, -0.16, 0);
+    railMesh.receiveShadow = true;
+    scene.add(railMesh);
+
+    // =========================================================================
+    // DOMINO TEXTURE GENERATOR (CRISP PIPS + METALLIC BRASS SPINNER + DIVIDER)
+    // =========================================================================
+    function createTileCanvasTexture(topPips, bottomPips) {
+      const c = document.createElement('canvas');
+      c.width = 512;
+      c.height = 1024;
+      const ctx = c.getContext('2d');
+
+      // Creamy Ivory PBR Surface
+      const grad = ctx.createLinearGradient(0, 0, 512, 1024);
+      grad.addColorStop(0, '#fefbf5');
+      grad.addColorStop(0.25, '#f7f1e3');
+      grad.addColorStop(0.7, '#ede1c9');
+      grad.addColorStop(1, '#ddcbab');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 512, 1024);
+
+      // Inset Soft Rim Highlight & Shadow
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+      ctx.lineWidth = 10;
+      ctx.strokeRect(5, 5, 502, 1014);
+
+      ctx.strokeStyle = 'rgba(160, 140, 105, 0.35)';
+      ctx.lineWidth = 8;
+      ctx.strokeRect(12, 12, 488, 1000);
+
+      // Center Divider Groove Line
+      ctx.strokeStyle = '#736041';
+      ctx.lineWidth = 14;
+      ctx.beginPath();
+      ctx.moveTo(25, 512);
+      ctx.lineTo(487, 512);
+      ctx.stroke();
+
+      // Divider Specular Highlight
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(27, 519);
+      ctx.lineTo(485, 519);
+      ctx.stroke();
+
+      // Shiny Gold Metallic Brass Spinner Rivet ("Perno")
+      const rx = 256, ry = 512;
+      const rivetGrad = ctx.createRadialGradient(rx - 5, ry - 5, 2, rx, ry, 24);
+      rivetGrad.addColorStop(0, '#fffde8');
+      rivetGrad.addColorStop(0.25, '#ffd84d');
+      rivetGrad.addColorStop(0.65, '#b38419');
+      rivetGrad.addColorStop(1, '#473307');
+      ctx.fillStyle = rivetGrad;
+      ctx.beginPath();
+      ctx.arc(rx, ry, 22, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Perno Specular Reflection
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+      ctx.beginPath();
+      ctx.arc(rx - 7, ry - 7, 5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Debossed Pips (Drilled Black Dots with 3D Depth)
+      function drawPip(x, y) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(x, y, 40, 0, Math.PI * 2);
+        const pipGrad = ctx.createRadialGradient(x - 9, y - 9, 3, x, y, 40);
+        pipGrad.addColorStop(0, '#2e2e2e');
+        pipGrad.addColorStop(0.55, '#121212');
+        pipGrad.addColorStop(1, '#000000');
+        ctx.fillStyle = pipGrad;
+        ctx.shadowColor = 'rgba(255, 255, 255, 0.5)';
+        ctx.shadowBlur = 6;
+        ctx.shadowOffsetY = 3;
+        ctx.fill();
+        ctx.restore();
+      }
+
+      function drawPipsHalf(count, cy) {
+        const left = 135, mid = 256, right = 377;
+        const topY = cy - 150, midY = cy, botY = cy + 150;
+        if (count === 1) drawPip(mid, midY);
+        else if (count === 2) { drawPip(left, topY); drawPip(right, botY); }
+        else if (count === 3) { drawPip(left, topY); drawPip(mid, midY); drawPip(right, botY); }
+        else if (count === 4) { drawPip(left, topY); drawPip(right, topY); drawPip(left, botY); drawPip(right, botY); }
+        else if (count === 5) { drawPip(left, topY); drawPip(right, topY); drawPip(mid, midY); drawPip(left, botY); drawPip(right, botY); }
+        else if (count === 6) {
+          drawPip(left, topY); drawPip(right, topY);
+          drawPip(left, midY); drawPip(right, midY);
+          drawPip(left, botY); drawPip(right, botY);
+        }
+      }
+
+      drawPipsHalf(topPips, 256);
+      drawPipsHalf(bottomPips, 768);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.anisotropy = 8;
+      return tex;
+    }
+
+    // =========================================================================
+    // ROUNDED RECTANGLE 3D GEOMETRY BUILDER (BEVELED EDGES)
+    // =========================================================================
+    function createRoundedBoxGeometry(width, height, depth, radius, smoothness) {
+      const shape = new THREE.Shape();
+      const eps = 0.00001;
+      const radiusActual = radius - eps;
+      const w = width / 2 - radiusActual;
+      const h = height / 2 - radiusActual;
+
+      shape.absarc(w, h, radiusActual, 0, Math.PI / 2, false);
+      shape.absarc(-w, h, radiusActual, Math.PI / 2, Math.PI, false);
+      shape.absarc(-w, -h, radiusActual, Math.PI, Math.PI * 3 / 2, false);
+      shape.absarc(w, -h, radiusActual, Math.PI * 3 / 2, Math.PI * 2, false);
+
+      const geometry = new THREE.ExtrudeGeometry(shape, {
+        depth: depth - radius * 2,
+        bevelEnabled: true,
+        bevelSegments: smoothness * 2,
+        steps: 1,
+        bevelSize: radiusActual,
+        bevelThickness: radius,
+        curveSegments: smoothness * 2
+      });
+
+      geometry.center();
+      return geometry;
+    }
+
+    // =========================================================================
+    // STANDARD PHYSICAL DOMINO SPECIFICATIONS (2:1 EXACT PROPORTIONS)
+    // =========================================================================
+    const W = 1.0;            // Domino width
+    const L = 2.0 * W;        // Domino length (exact 2:1 ratio)
+    const T = 0.30;           // Domino thickness
+    const BEVEL_R = 0.055;    // Beveled corner radius
+    const SEAM_GAP = 0.02;    // Realistic physical hairline gap between touching tiles
+
+    const tileBevelGeo = createRoundedBoxGeometry(W, L, T, BEVEL_R, 3);
+    const tileFacePlaneGeo = new THREE.PlaneGeometry(W - 0.04, L - 0.04);
+
+    // Warm Ivory PBR Material with Subsurface Look
+    const ivoryMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xfdfaf0,
+      roughness: 0.22,
+      metalness: 0.01,
+      clearcoat: 0.45,
+      clearcoatRoughness: 0.15,
+    });
+
+    // Genuine Polished Metallic Brass Rivet Material
+    const brassRivetMat = new THREE.MeshStandardMaterial({
+      color: 0xffd43b,
+      roughness: 0.18,
+      metalness: 0.95,
+    });
+    const rivetGeo = new THREE.SphereGeometry(0.045, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+
+    // BUILD A HIGH-FIDELITY DOMINO (SEPARATE MESHES, REAL 3D BRASS PERNO)
+    function build3DDomino(topPips, bottomPips) {
+      const group = new THREE.Group();
+
+      // 1. Beveled Ivory 3D Solid Body
+      const bodyMesh = new THREE.Mesh(tileBevelGeo, ivoryMaterial);
+      bodyMesh.castShadow = true;
+      bodyMesh.receiveShadow = true;
+      group.add(bodyMesh);
+
+      // 2. High-Res Textured Face (Front +Z)
+      const faceTex = createTileCanvasTexture(topPips, bottomPips);
+      const faceMat = new THREE.MeshStandardMaterial({
+        map: faceTex,
+        roughness: 0.22,
+        metalness: 0.02,
+      });
+      const faceMesh = new THREE.Mesh(tileFacePlaneGeo, faceMat);
+      faceMesh.position.z = T / 2 + 0.002;
+      group.add(faceMesh);
+
+      // 3. Physical 3D Brass Spinner Rivet (Catches real light)
+      const rivetMesh = new THREE.Mesh(rivetGeo, brassRivetMat);
+      rivetMesh.rotation.x = Math.PI / 2;
+      rivetMesh.position.set(0, 0, T / 2 + 0.003);
+      group.add(rivetMesh);
+
+      group.userData = { topPips, bottomPips, isTile: true };
+      return group;
+    }
+
+    // =========================================================================
+    // 1. PLAYED DOMINOES CHAIN - PHYSICALLY CORRECT GRID (NO MERGING / ZERO OVERLAP)
+    // =========================================================================
+    const playedChainGroup = new THREE.Group();
+
+    // Helper: Place tile lying flat on table
+    function placeTile(topPips, bottomPips, cx, cz, isHorizontal = false) {
+      const tile = build3DDomino(topPips, bottomPips);
+      tile.position.set(cx, T / 2, cz);
+      if (isHorizontal) {
+        tile.rotation.x = -Math.PI / 2;
+        tile.rotation.z = Math.PI / 2;
+      } else {
+        tile.rotation.x = -Math.PI / 2;
+        tile.rotation.z = 0;
+      }
+      playedChainGroup.add(tile);
+      return tile;
+    }
+
+    // --- MAIN SPINE (South Row, Z = 0.5) ---
+    // Tile 0: [4 | 4] Double-Four Spinner (Vertical Cross)
+    placeTile(4, 4, 0.0, 0.5, false);
+
+    // Tile 1: [4 | 1] Horizontal connecting to left of [4|4]
+    // Left edge of [4|4] is at X = -0.5. Tile 1 spans X [-2.5, -0.5].
+    placeTile(4, 1, -(0.5 + W + SEAM_GAP), 0.5, true);
+
+    // Tile 2: [1 | 0] Horizontal continuing left
+    // Spans X [-4.5, -2.5].
+    placeTile(1, 0, -(0.5 + W + L + SEAM_GAP * 2), 0.5, true);
+
+    // Tile 3: [4 | 2] Horizontal connecting to right of [4|4]
+    // Right edge of [4|4] is at X = +0.5. Spans X [+0.5, +2.5].
+    placeTile(4, 2, +(0.5 + W + SEAM_GAP), 0.5, true);
+
+    // Tile 4: [2 | 2] Double-Two Spinner (Vertical Cross)
+    // Touches right edge of [4|2] at X = +2.5.
+    placeTile(2, 2, +(2.5 + W/2 + SEAM_GAP), 0.5, false);
+
+    // --- NORTH BRANCH (Turning North from [2|2] at X = 3.0) ---
+    // Tile 5: [2 | 5] Vertical extending North from [2|2]
+    // Top of [2|2] is at Z = 0.5 - 1.0 = -0.5. Spans Z [-2.5, -0.5].
+    placeTile(2, 5, +(2.5 + W/2 + SEAM_GAP), -0.5 - W - SEAM_GAP, false);
+
+    // --- TOP ROW (Connecting West from North Branch, Z = -2.5) ---
+    // Tile 6: [5 | 6] Horizontal extending West from top of [2|5]
+    // Spans X [+0.5, +2.5] at Z = -2.5.
+    placeTile(5, 6, +(0.5 + W + SEAM_GAP), -2.5, true);
+
+    // Tile 7: [6 | 6] Double-Six Spinner (Vertical Cross)
+    // Touches left edge of [5|6] at X = +0.5. Spans X [-0.5, +0.5] at Z = -2.5.
+    placeTile(6, 6, 0.0, -2.5, false);
+
+    // Tile 8: [6 | 3] Horizontal continuing West from [6|6]
+    // Touches left edge of [6|6] at X = -0.5. Spans X [-2.5, -0.5] at Z = -2.5.
+    placeTile(6, 3, -(0.5 + W + SEAM_GAP), -2.5, true);
+
+    scene.add(playedChainGroup);
+
+    // =========================================================================
+    // 2. TOP PARTNER: 7 COMPACT STANDING TILES IN PHYSICAL RACK
+    // =========================================================================
+    const topRackGroup = new THREE.Group();
+    const compactW = 0.82, compactH = 1.30, compactD = 0.22;
+    const compactGeo = createRoundedBoxGeometry(compactW, compactH, compactD, 0.05, 2);
+
+    // Top Rack Backing Shelf
+    const topShelfGeo = new THREE.BoxGeometry(6.2, 0.25, 0.6);
+    const topShelf = new THREE.Mesh(topShelfGeo, railMat);
+    topShelf.position.set(0, 0.1, -4.6);
+    topShelf.receiveShadow = true;
+    topRackGroup.add(topShelf);
+
+    for (let i = 0; i < 7; i++) {
+      const tile = new THREE.Mesh(compactGeo, ivoryMaterial);
+      tile.position.set((i - 3) * 0.85, compactH / 2 + 0.05, -4.6);
+      tile.rotation.x = -0.16; // standing upright, slightly tilted away
+      tile.castShadow = true;
+      tile.receiveShadow = true;
+      topRackGroup.add(tile);
+    }
+    scene.add(topRackGroup);
+
+    // =========================================================================
+    // 3. LEFT OPPONENT: 7 TILES IN ANGLED SIDE RACK
+    // =========================================================================
+    const leftRackGroup = new THREE.Group();
+    const leftShelfGeo = new THREE.BoxGeometry(0.5, 0.25, 5.8);
+    const leftShelf = new THREE.Mesh(leftShelfGeo, railMat);
+    leftShelf.position.set(-6.1, 0.1, -0.4);
+    leftShelf.receiveShadow = true;
+    leftRackGroup.add(leftShelf);
+
+    for (let i = 0; i < 7; i++) {
+      const tile = new THREE.Mesh(compactGeo, ivoryMaterial);
+      tile.position.set(-6.1, compactH / 2 + 0.05, (i - 3) * 0.76 - 0.4);
+      tile.rotation.y = Math.PI / 2 + 0.25;
+      tile.rotation.z = -0.15;
+      tile.castShadow = true;
+      tile.receiveShadow = true;
+      leftRackGroup.add(tile);
+    }
+    scene.add(leftRackGroup);
+
+    // =========================================================================
+    // 4. RIGHT OPPONENT: 7 TILES IN ANGLED SIDE RACK
+    // =========================================================================
+    const rightRackGroup = new THREE.Group();
+    const rightShelf = new THREE.Mesh(leftShelfGeo, railMat);
+    rightShelf.position.set(6.1, 0.1, -0.4);
+    rightShelf.receiveShadow = true;
+    rightRackGroup.add(rightShelf);
+
+    for (let i = 0; i < 7; i++) {
+      const tile = new THREE.Mesh(compactGeo, ivoryMaterial);
+      tile.position.set(6.1, compactH / 2 + 0.05, (i - 3) * 0.76 - 0.4);
+      tile.rotation.y = -Math.PI / 2 - 0.25;
+      tile.rotation.z = 0.15;
+      tile.castShadow = true;
+      tile.receiveShadow = true;
+      rightRackGroup.add(tile);
+    }
+    scene.add(rightRackGroup);
+
+    // =========================================================================
+    // 5. PLAYER'S HAND & PHYSICAL TRAY (BOTTOM 7 TILES) - COMPACT & SLEEK
+    // =========================================================================
+    const playerHandGroup = new THREE.Group();
+    const handTiles = [
+      [1, 4], [1, 5], [2, 5], [3, 5], [4, 5], [5, 5], [0, 0]
+    ];
+    const playerTileMeshes = [];
+
+    // Sculpted 3D Dark Gunmetal Tray
+    const trayGeo = createRoundedBoxGeometry(8.4, 0.40, 1.1, 0.14, 3);
+    const trayMat = new THREE.MeshStandardMaterial({
+      color: 0x09140e,
+      roughness: 0.35,
+      metalness: 0.25,
+    });
+    const playerTrayMesh = new THREE.Mesh(trayGeo, trayMat);
+    playerTrayMesh.position.set(0, 0.1, 5.0);
+    playerTrayMesh.receiveShadow = true;
+    playerTrayMesh.castShadow = true;
+    playerHandGroup.add(playerTrayMesh);
+
+    // 7 Playable Dominoes standing in the tray slot (proportional scale with clean gaps)
+    const handTileScale = 0.80;
+    handTiles.forEach(([t, b], idx) => {
+      const domino = build3DDomino(t, b);
+      domino.scale.set(handTileScale, handTileScale, handTileScale);
+      const posX = (idx - 3) * 1.08;
+      domino.position.set(posX, (L * handTileScale) / 2 + 0.12, 5.0);
+      domino.rotation.x = -0.34; // tilted back toward camera for clear visibility
+      domino.userData.origY = domino.position.y;
+      domino.userData.origZ = domino.position.z;
+      domino.userData.isPlayerHand = true;
+      domino.userData.index = idx;
+
+      playerHandGroup.add(domino);
+      playerTileMeshes.push(domino);
+    });
+
+    scene.add(playerHandGroup);
+
+    // =========================================================================
+    // RAYCASTER FOR INTERACTIVE HOVER & TILE SELECTION
+    // =========================================================================
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2(-100, -100);
+    let hoveredTile = null;
+    let selectedTile = null;
+
+    window.addEventListener('mousemove', (e) => {
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    });
+
+    window.addEventListener('click', (e) => {
+      if (hoveredTile) {
+        if (selectedTile === hoveredTile) {
+          selectedTile = null;
+        } else {
+          selectedTile = hoveredTile;
+        }
+      }
+    });
+
+    // Window Resize
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // Emerald / Amber Matrix Toggle
+    const btnEmerald = document.getElementById('btn-emerald');
+    const btnAmber = document.getElementById('btn-amber');
+    if (btnEmerald && btnAmber) {
+      btnEmerald.addEventListener('click', () => {
+        btnEmerald.className = "py-1.5 rounded-lg bg-emerald-950/70 border border-emerald-500/40 text-emerald-400 text-xs font-bold transition";
+        btnAmber.className = "py-1.5 rounded-lg bg-transparent border border-white/10 text-zinc-400 text-xs font-bold transition hover:text-white";
+      });
+      btnAmber.addEventListener('click', () => {
+        btnAmber.className = "py-1.5 rounded-lg bg-amber-950/70 border border-amber-500/40 text-amber-400 text-xs font-bold transition";
+        btnEmerald.className = "py-1.5 rounded-lg bg-transparent border border-white/10 text-zinc-400 text-xs font-bold transition hover:text-white";
+      });
+    }
+
+    // =========================================================================
+    // RENDER LOOP WITH SMOOTH LIFT ANIMATIONS
+    // =========================================================================
+    function animate() {
+      requestAnimationFrame(animate);
+
+      // Raycasting on player hand
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(playerHandGroup.children, true);
+
+      let found = null;
+      if (intersects.length > 0) {
+        let obj = intersects[0].object;
+        while (obj.parent && obj.parent !== playerHandGroup) {
+          obj = obj.parent;
+        }
+        if (obj.userData.isPlayerHand) {
+          found = obj;
+        }
+      }
+      hoveredTile = found;
+
+      // Animate player tiles (lift on hover/select)
+      playerTileMeshes.forEach((mesh) => {
+        const isHover = (mesh === hoveredTile);
+        const isSelect = (mesh === selectedTile);
+        const targetY = mesh.userData.origY + (isSelect ? 0.45 : isHover ? 0.28 : 0);
+        const targetZ = mesh.userData.origZ - (isSelect ? 0.20 : isHover ? 0.12 : 0);
+
+        mesh.position.y += (targetY - mesh.position.y) * 0.15;
+        mesh.position.z += (targetZ - mesh.position.z) * 0.15;
+      });
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+  </script>
+</body>
+</html>
