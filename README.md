@@ -1,6 +1,8 @@
 # Dominó Maestro (`domino-masterclass`)
 
-Interactive **Dominican competitive partnership dominoes (2v2)** training suite featuring a live tournament match simulator, a deterministic client-side Tactical Coach (*El Maestro*), a 28-tile probability matrix, and a curated tactical academy.
+> 🌐 **Language / Idioma**: **English** | [Español](./README.es.md)
+
+Bilingual (**ES / EN**) interactive **Dominican competitive partnership dominoes (2v2)** training suite featuring a live tournament match simulator, a deterministic client-side Tactical Coach (*El Maestro*), a 28-tile probability matrix, and a curated tactical academy.
 
 - **Production Instance**: [https://domino.concepcions.org](https://domino.concepcions.org)
 - **Repository**: [https://github.com/rodolfoconcepcion/domino-maestro](https://github.com/rodolfoconcepcion/domino-maestro)
@@ -11,11 +13,12 @@ Interactive **Dominican competitive partnership dominoes (2v2)** training suite 
 
 | Tab (`App.tsx`) | Module | Description |
 |---|---|---|
-| **Mesa** | [`src/components/MatchSimulator.tsx`](./src/components/MatchSimulator.tsx) | Full 4-player 2v2 partnership cockpit (`Nosotros`: `0` & `2` vs. `Ellos`: `1` & `3`) playing to 100 or 200 points with snake-chain layout, Left Tactical Coach HUD, Right 28-Tile Matrix HUD, and round debrief. |
-| **Academia** | [`src/components/TacticalAcademy.tsx`](./src/components/TacticalAcademy.tsx) & [`src/data/scenarios.ts`](./src/data/scenarios.ts) | 12 interactive tactical scenarios across `Principiante`, `Intermedio`, and `Maestro` levels (opening leads, *respeto a la salida*, right-rival strangulation, *tranque* math, *ficha puente*, *cambio de mando*, *la pensada*, and *a ley de una* defense). |
-| **Matriz 28** | [`src/components/TileTracker.tsx`](./src/components/TileTracker.tsx) | Manual 28-tile click-to-mark tracking matrix (`[0:0]`–`[6:6]`) enforcing the 7-tile hand limit and surfacing monopoly suits, dry suits, and trapped doubles. |
-| **Doctrina** | [`src/components/PrinciplesLibrary.tsx`](./src/components/PrinciplesLibrary.tsx) | Reference viewer for the *10 Leyes Maestras* (10 Master Laws of Dominican Dominoes). |
-| **Static Prototypes** | `dist/v2/`, `dist/v-pbr-3d/`, `dist/v-sprites/`, etc. | Standalone HTML/Tailwind experimental builds (including `dist/v2/index.html` with 3-layer DOM shadows, explicit `leftArm`/`rightArm` seam tracking, and Web Audio tile clack synthesis). |
+| **Mesa / Table** | [`src/components/MatchSimulator.tsx`](./src/components/MatchSimulator.tsx) | Full 4-player 2v2 partnership cockpit (`Nosotros/Us`: `0` & `2` vs. `Ellos/Them`: `1` & `3`) playing to 100 or 200 points with live header score/timer telemetry, snake-chain layout, independent DOM shadow layer, Web Audio tile clack synthesis, Left Tactical Coach HUD, Right 28-Tile Matrix HUD, and round debrief. |
+| **Academia / Academy** | [`src/components/TacticalAcademy.tsx`](./src/components/TacticalAcademy.tsx), [`src/data/scenarios.ts`](./src/data/scenarios.ts), [`src/i18n/scenarios.en.ts`](./src/i18n/scenarios.en.ts) | 12 interactive bilingual tactical scenarios across Beginner (*Principiante*), Intermediate (*Intermedio*), and Master (*Maestro*) tiers. |
+| **Matriz 28 / 28 Matrix** | [`src/components/TileTracker.tsx`](./src/components/TileTracker.tsx) | Manual 28-tile click-to-mark tracking matrix (`[0:0]`–`[6:6]`) enforcing the 7-tile hand limit and surfacing monopoly suits, dry suits, and trapped doubles. |
+| **Doctrina / Doctrine** | [`src/components/PrinciplesLibrary.tsx`](./src/components/PrinciplesLibrary.tsx) | Bilingual reference viewer for the *10 Leyes Maestras* (10 Master Laws of Dominican Dominoes). |
+| **Core Engine & i18n** | [`src/engine/coach.ts`](./src/engine/coach.ts), [`src/i18n/LanguageContext.tsx`](./src/i18n/LanguageContext.tsx), [`src/utils/sound.ts`](./src/utils/sound.ts) | Shared heuristic AI & Coach scorer for all 4 seats (`es`/`en`), persistent header `ES`/`EN` language context (`localStorage['domino-lang']`), and Web Audio wooden clack sound synthesizer. |
+| **Static Prototypes** | `public/v2/`, `public/v-pbr-3d/`, `public/v-sprites/`, etc. (`dist/` on build) | Standalone HTML/Tailwind experimental builds preserved across `vite build`. |
 
 ---
 
@@ -64,7 +67,7 @@ npm run preview  # Previews production bundle locally
 ```bash
 npx playwright test
 ```
-> Note: `playwright` (`^1.65.0`) is installed in `devDependencies`; initializing `playwright.config.ts` and `tests/` specs is tracked in [`docs/TODO.md`](./docs/TODO.md).
+Runs headless Chromium against `http://127.0.0.1:4173` (`playwright.config.ts` + [`tests/app.spec.ts`](./tests/app.spec.ts)), verifying navigation, theme switching, rule configuration, Academy flow, 28 Matrix, Doctrine tabs, P1 independent shadows/AI, P2 live header telemetry, and P3 `ES <-> EN` bilingual switching across all 4 tabs.
 
 ### Docker
 ```bash
@@ -78,5 +81,6 @@ Health check endpoint: `GET http://localhost:3333/health` -> `{"status":"ok","se
 ## Project Documentation
 
 - [`GEMINI.md`](./GEMINI.md) — Core invariants, domino rules, and git/testing workflow rules
-- [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — Match state machine, snake layout solver, coach heuristic scoring, and deployment topology
-- [`docs/TODO.md`](./docs/TODO.md) — Completed milestones, known issues, and prioritized backlog
+- [`README.es.md`](./README.es.md) — Documentación principal del proyecto en Español
+- [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) ([Español](./docs/ARCHITECTURE.es.md)) — Match state machine, snake layout solver, coach heuristic scoring, i18n, and deployment topology
+- [`docs/TODO.md`](./docs/TODO.md) ([Español](./docs/TODO.es.md)) — Completed milestones, known issues, and prioritized backlog
