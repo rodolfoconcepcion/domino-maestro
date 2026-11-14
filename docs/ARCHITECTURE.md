@@ -1,16 +1,18 @@
 # Dominó Maestro — Architecture Reference
 
+> 🌐 **Language / Idioma**: **English** | [Español](./ARCHITECTURE.es.md)
+
 ## 1. System & Data Flow
 
-Dominó Maestro is a pure client-side React + TypeScript Single-Page Application (`src/main.tsx` -> `src/App.tsx`). There is no backend API or server-side persistence; all game state, heuristic coaching, and probability tracking run locally in browser memory (with theme preference persisted in `localStorage` under `domino-theme`).
+Dominó Maestro is a pure client-side React + TypeScript Single-Page Application (`src/main.tsx` -> `<LanguageProvider>` -> `src/App.tsx`). There is no backend API or server-side persistence; all game state, heuristic coaching, audio synthesis, and probability tracking run locally in browser memory (with theme persisted in `localStorage['domino-theme']` and language persisted in `localStorage['domino-lang']`).
 
 ### Top-Level Views (`src/App.tsx`)
-| Tab State | UI Label | Component | Purpose |
+| Tab State | UI Label (`ES` / `EN`) | Component | Purpose |
 |---|---|---|---|
-| `'simulator'` (default) | `Mesa` | `MatchSimulator` | 3-column live 2v2 tournament cockpit, rule configurator, and tactical HUD |
-| `'academy'` | `Academia` | `TacticalAcademy` | 12 interactive tactical puzzles (`SCENARIOS`) with step-by-step board state |
-| `'tracker'` | `Matriz 28` | `TileTracker` | Manual 28-tile click-to-mark tracker with 7-tile hand limit and suit audit |
-| `'library'` | `Doctrina` | `PrinciplesLibrary` | 10 Master Laws (*10 Leyes Maestras*) tactical compendium |
+| `'simulator'` (default) | `Mesa` / `Table` | `MatchSimulator` | 3-column live 2v2 tournament cockpit, rule configurator, live telemetry emitter, and tactical HUD |
+| `'academy'` | `Academia` / `Academy` | `TacticalAcademy` | 12 interactive bilingual tactical puzzles (`getScenarios(lang)`) with step-by-step board state |
+| `'tracker'` | `Matriz 28` / `28 Matrix` | `TileTracker` | Manual 28-tile click-to-mark tracker with 7-tile hand limit and suit audit |
+| `'library'` | `Doctrina` / `Doctrine` | `PrinciplesLibrary` | 10 Master Laws (*10 Leyes Maestras*) bilingual tactical compendium |
 
 ### Match State Machine (`src/components/MatchSimulator.tsx`)
 ```
@@ -57,43 +59,42 @@ Several prototype builds exist directly inside `dist/` for visual and architectu
 
 The "Virtual Master" / **Tactical Coach** is a **deterministic heuristic evaluation engine** paired with a **curated scenario tree**. No external LLM APIs or network inference calls are made.
 
-### Live Move Evaluator (`src/components/MatchSimulator.tsx`, L264–444)
-- **Trigger**: `useEffect` running whenever `turn === 0 && !gameOver` (depends on `turn`, `boardEnds`, `hands`, `gameOver`, `passedSuits`).
+### Live Move Evaluator (`src/engine/coach.ts`)
+- **Trigger**:
+  - For Human (`seatIdx === 0`): `useEffect` in `MatchSimulator.tsx` runs whenever `turn === 0 && !gameOver`, passing current state + active `lang` (`'es' | 'en'`).
+  - For AI seats (`seatIdx ∈ {1, 2, 3}`): 900ms `setTimeout` invokes `evaluateMovesForSeat({ seatIdx, ..., lang })` and plays `options[0]` (or passes via `handlePass`).
 - **Inputs**:
-  - `hands[0]` (player hand)
-  - `boardEnds: [number, number] | null`
-  - `passedSuits: number[][]` (recorded passed suits per seat `0..3`)
-  - `handNumber`, `ruleFirstHandSalida`
+  - `seatIdx: number` (`0..3`), `hands: Tile[][]`, `boardEnds: [number, number] | null`, `passedSuits: number[][]`, `handNumber`, `ruleFirstHandSalida`, `salidorIndex`, `boardLength`, `salidaValues`, `lang?: 'es' | 'en'`.
 - **Scoring Rules**:
   1. **Hand #1 Opening (`!boardEnds && handNumber === 1`)**: Forces single mandatory option (`[6:6]` or `[0:0]`, score `10`).
-  2. **Free Opening (`!boardEnds && handNumber > 1`)**: Ranks all tiles in `hands[0]` by:
-     - Suit dominance: `maxSuit * 3`
-     - Backed double bonus: `+4` if `t[0] === t[1]`
-     - Pip weight discharge: `round(((t[0] + t[1]) / 3) * 10) / 10`
-  3. **Mid-Game Move Evaluation**: Generates every valid `(tile, side)` pair where `side ∈ {'left', 'right'}` and computes `newEnd`, `otherEnd`, and remaining hand `rest`:
-     - **Suit Control**: `+3` per remaining tile in `rest` matching `newEnd` or `otherEnd` (`endsOwned * 3`).
+  2. **Free Opening (`!boardEnds && handNumber > 1`)**: Ranks all tiles by suit dominance (`maxSuit * 3`), backed double bonus (`+4` if `t[0] === t[1]`), and pip weight discharge (`round(((t[0] + t[1]) / 3) * 10) / 10`).
+  3. **Mid-Game Move Evaluation**: Evaluates every legal `(tile, side)` pair with `newEnd`, `otherEnd`, remaining hand `rest`, seat-relative partner `(seatIdx + 2) % 4`, next rival `(seatIdx + 1) % 4`, and previous rival `(seatIdx + 3) % 4`:
+     - **Suit Control**: `+3` per remaining tile in `rest` matching `newEnd` or `otherEnd`.
      - **Board Squaring (*Cuadre*)**: `+4` if `newEnd === otherEnd && owned(newEnd) > 0`.
      - **Weight Discharge (*Descarga*)**: `+round((pips / 3) * 10) / 10`.
      - **Double Offloading**: `+3` if `tile[0] === tile[1]`.
-     - **Pass Exploitation / Partner Protection**:
-       - `-5` if partner (`passedSuits[2]`) already passed on `newEnd`.
-       - `+5` if next opponent (`passedSuits[1]`, *Rival Derecha*) passed on `newEnd`.
-       - `+1` if previous opponent (`passedSuits[3]`, *Rival Izquierda*) passed on `newEnd`.
+     - **Pass Exploitation / Partner Protection / Salida Respect**:
+       - `-5` if partner already passed on `newEnd`.
+       - `+5` if next opponent passed on `newEnd`.
+       - `+1` if previous opponent passed on `newEnd`.
+       - `+2` partner *Salida* respect when protecting partner's lead suit in early rounds (`boardLength <= 5`).
 - **Outputs**:
-  - `coachOptions: CoachOption[]`: Sorted descending by `total`, top 3 displayed in Left HUD with score breakdown.
-  - `coachAdvice: string`: Natural-language Dominican Spanish recommendation explaining why the top-ranked move is optimal.
-  - **Left HUD Telemetry Bars** (`MatchSimulator.tsx` L806–842):
-    - *La Salida*: `salidaPct = clamp(25..100, round((dominantSuitCount / 7) * 100))`
-    - *Partner Signaling*: `76%` (no conflicting passes), `48%` (passed 1 open end), `15%` (passed both), `50%` (unopened)
-    - *Tranca Risk*: `clamp(12..95, round((playedCountOnOpenEnds / 14) * 100))`
+  - `options: CoachOption[]`: Sorted descending by `total`, top 3 displayed in Left HUD (`MatchSimulator.tsx`).
+  - `advice: string`: Localized (`es` or `en`) tactical explanation recommending why the highest-scoring move is optimal.
+  - **Left HUD Telemetry Bars** (`MatchSimulator.tsx`):
+    - *La Salida* / Opening Lead: `salidaPct = clamp(25..100, round((dominantSuitCount / 7) * 100))`
+    - *Partner Signals*: `76%` (no conflicting passes), `48%` (passed 1 open end), `15%` (passed both), `50%` (unopened)
+    - *Lock Risk* (`Riesgo de Tranque`): `clamp(12..95, round((playedCountOnOpenEnds / 14) * 100))`
+- **Header Telemetry (`App.tsx` <-> `MatchSimulator.tsx`)**:
+  - `MatchSimulator` emits `{ scores, targetScore, handNumber, roundSeconds }` via `onTelemetryChange` driven by a live 1-second timer to update `[data-testid="header-live-score"]` and `[data-testid="header-round-timer"]`.
 
-### Automated Seat AI (`1`, `2`, `3`)
-- **React Simulator (`MatchSimulator.tsx` L773–791)**: Waits `900ms`, computes `getPlayableMoves(hands[turn], boardEnds)`, passes if empty, or picks a **random** legal move (`playable[Math.floor(Math.random() * playable.length)]`), defaulting `'both'`/`'any'` to `'left'`.
-- **v2 Standalone Engine (`dist/v2/index.html` L1080–1102)**: Waits `950ms` and sorts legal moves descending by `(pips + (isDouble ? 4 : 0))` before selecting `playable[0]`.
+### Standalone Audio & Board Shadows
+- **`src/utils/sound.ts`**: `playClackSound()` synthesizes tactile wooden tile placement clicks on every valid play via Web Audio API triangle oscillators.
+- **2-Layer DOM Board Surface (`DominoTile.tsx` `boardMode`, `MatchSimulator.tsx`, `TacticalAcademy.tsx`)**: Separates `data-testid="board-shadows-layer"` (`z-0`) from `data-testid="board-tiles-layer"` (`z-10`) so adjacent contact shadows never darken neighboring ivory tile faces.
 
 ### Curated Academy & 28-Tile Deductions
-- **Tactical Academy (`src/data/scenarios.ts` + `TacticalAcademy.tsx`)**: `SCENARIOS` defines 12 `PuzzleScenario` records across 10 chapters (`Principiante`, `Intermedio`, `Maestro`). Each scenario provides fixed `boardTiles`, `boardEnds`, `myHand`, `knownPasses`, multiple-choice `options` (with `isCorrect`, `tacticalPrinciple`, `explanation`), and `tacticalTip`.
-- **28-Tile Matrix (`src/components/TileTracker.tsx`)**: Computes per-suit inventory (`remaining = 7 - (inHand + onBoard)`), surfacing live alerts for `monopolySuits` (`remaining === 0 && inHand > 0`), `drySuits` (`remaining === 0 && inHand === 0`), and `trappedDoubles` (`doubleState === 'unplayed' && remaining >= 1 && remaining <= 2`).
+- **Tactical Academy (`src/data/scenarios.ts` + `src/i18n/scenarios.en.ts` + `TacticalAcademy.tsx`)**: `getScenarios(lang)` returns all 12 `PuzzleScenario` records localized cleanly into Spanish or English without duplicating tile geometry.
+- **28-Tile Matrix (`src/components/TileTracker.tsx`)**: Computes per-suit inventory (`remaining = 7 - (inHand + onBoard)`), surfacing live alerts for `monopolySuits`, `drySuits`, and `trappedDoubles`.
 
 ---
 
@@ -102,34 +103,43 @@ The "Virtual Master" / **Tactical Coach** is a **deterministic heuristic evaluat
 ```text
 /home/rodolfo/projects/domino-masterclass/
 ├── GEMINI.md                     # Auto-loaded session invariants & workflow guide (<120 lines)
+├── README.md / README.es.md      # Bilingual project overview & developer guide
 ├── docs/
-│   ├── ARCHITECTURE.md           # This technical reference
-│   └── TODO.md                   # Living sprint & backlog tracker
+│   ├── ARCHITECTURE.md / .es.md  # System architecture reference (EN & ES)
+│   └── TODO.md / .es.md          # Living sprint & backlog tracker (EN & ES)
+├── playwright.config.ts          # Headless Chromium runner on http://127.0.0.1:4173
+├── tests/
+│   └── app.spec.ts               # Playwright E2E specs (navigation, rules, Academy, Matrix, Doctrine, P1–P3)
+├── public/                       # Preserved static prototypes copied into dist/ on build (v2/, v-pbr-3d/, etc.)
 ├── src/
-│   ├── main.tsx                  # React 18 root mount
-│   ├── App.tsx                   # Floating glass header, theme toggle, 4-tab view switcher
+│   ├── main.tsx                  # React 18 root mount wrapped in <LanguageProvider>
+│   ├── App.tsx                   # Floating glass header, live telemetry, ES/EN toggle, theme toggle, 4 tabs
 │   ├── index.css                 # Tailwind directives, .felt-texture, glass panels, light-mode overrides
+│   ├── i18n/
+│   │   ├── LanguageContext.tsx   # Persistent ES/EN React context (localStorage['domino-lang'])
+│   │   └── scenarios.en.ts       # Full English translation layer for all 12 scenarios + getScenarios(lang)
+│   ├── engine/
+│   │   └── coach.ts              # Shared 4-seat heuristic evaluator & legal move generator
+│   ├── utils/
+│   │   └── sound.ts              # Web Audio wooden tile clack synthesizer
 │   ├── types/
 │   │   └── domino.ts             # Tile, ScenarioBoardTile, PuzzleScenario, GamePlayer interfaces
 │   ├── data/
 │   │   └── scenarios.ts          # 12 curated Dominican tactical puzzle scenarios (SCENARIOS)
 │   └── components/
-│       ├── DominoTile.tsx        # Reusable ivory resin tile SVG/CSS pips, brass pin, badges
-│       ├── MatchSimulator.tsx    # Core 2v2 match engine, 10+ rule toggles, snake layout, Coach & Matrix HUDs
-│       ├── TacticalAcademy.tsx   # Interactive puzzle board consuming SCENARIOS
+│       ├── DominoTile.tsx        # Reusable ivory resin tile SVG/CSS pips, brass pin, badges, boardMode
+│       ├── MatchSimulator.tsx    # Core 2v2 match engine, 11 rule configs, snake layout, Coach & Matrix HUDs
+│       ├── TacticalAcademy.tsx   # Interactive puzzle board consuming getScenarios(lang)
 │       ├── TileTracker.tsx       # Standalone 28-tile manual counting matrix (7-tile hand guard)
-│       └── PrinciplesLibrary.tsx # 10 Master Laws doctrine viewer
-├── dist/                         # Vite production bundle + standalone prototypes (v2/, v-pbr-3d/, v-sprites/, etc.)
-├── reference_apps/               # Reference UI screenshots (domino_go/, jogatina/, vip_dominoes.webp)
+│       └── PrinciplesLibrary.tsx # 10 Master Laws bilingual doctrine viewer
 ├── Dockerfile                    # Multi-file copy into nginx:alpine (port 80)
 ├── nginx.conf                    # Gzip, SPA fallback, GET /health JSON endpoint
 ├── package.json                  # React 18, Vite 6, TS 5.7, Tailwind 3.4, Playwright ^1.65.0
 ├── tsconfig.json                 # Strict TypeScript config (ES2020, bundler resolution)
-├── vite.config.ts                # Vite config (host 0.0.0.0, port 3333)
-└── tailwind.config.js            # Custom domino palette and tactile/felt box-shadows
+└── vite.config.ts                # Vite config (host 0.0.0.0, port 3333)
 ```
 
-**Playwright E2E Status**: `playwright` (`^1.65.0`) is installed in `package.json` `devDependencies`; `playwright.config.ts` and `tests/` have not yet been initialized (tracked in [`docs/TODO.md`](./TODO.md)).
+**Playwright E2E Status**: Active and configured (`playwright.config.ts` -> `tests/app.spec.ts`), executed against Vite on `http://127.0.0.1:4173` via `npx playwright test`.
 
 ---
 

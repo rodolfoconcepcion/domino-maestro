@@ -1,5 +1,7 @@
 # Dominó Maestro — Sprint & Task Tracker
 
+> 🌐 **Language / Idioma**: **English** | [Español](./TODO.es.md)
+
 ## 1. Completed Milestones
 
 ### Git History (`master`)
@@ -22,32 +24,32 @@
 
 ---
 
+### Completed Priority Milestones (`P0`–`P3`)
+- **[P0] Playwright E2E Suite (`playwright.config.ts`, `tests/app.spec.ts`)**:
+  - Configured headless Chromium runner (`playwright/test` targeting dedicated Vite dev server on `http://127.0.0.1:4173`) with 5 core E2E specs covering navigation tabs, theme toggle, rule configurator modal, Academia scenario flow (`1/12` -> `2/12`), Matriz 28 demo/reset & 7-tile limit guard, and Doctrina law tabs (`5 passed`).
+- **[P1] `/v2/` Backport & Tactical Heuristic AI (`src/engine/coach.ts`, `src/utils/sound.ts`, `MatchSimulator.tsx`, `DominoTile.tsx`, `TacticalAcademy.tsx`)**:
+  - Extracted pure `evaluateMovesForSeat` + `getPlayableMoves` into `src/engine/coach.ts` and replaced random AI seat play (`1`, `2`, `3`) with full Dominican 2v2 heuristic scoring (suit control, *cuadre*, pip offload, double offload, partner pass avoidance, next-rival strangling, partner *Salida* respect).
+  - Added Web Audio wooden clack synthesis (`playClackSound()`), explicit `{ inner, outer }` seam validation, independent `#shadows-layer` / `#tiles-layer` (`boardMode`), and pure Spanish HUD titles (`6 passed`).
+- **[P2] Live Header Telemetry & Static Prototype Preservation (`src/App.tsx`, `src/components/MatchSimulator.tsx`, `public/`)**:
+  - Added `MatchTelemetry` (`scores`, `targetScore`, `handNumber`, `roundSeconds`) and a live 1-second round timer in `MatchSimulator`, wired via `onTelemetryChange` to `App.tsx` (`data-testid="header-live-score"` and `data-testid="header-round-timer"` replacing static `154 - 120` and `00:00:00`).
+  - Preserved static prototype sub-routes (`v2/`, `v-opt-a/`, `v-pbr-3d/`, `v-sprites/`, `v-tactile/`, `v1-threejs/`, `v2-isometric/`) under `public/` so `npm run build` emits `dist/v2/index.html`, and ignored generated test/preview artifacts in `.gitignore` (`7 passed`).
+- **[P3] Bilingual Documentation (ES/EN) & Full Bilingual Application (ES/EN) (`src/i18n/`, all UI components, `README.es.md`, `docs/*.es.md`)**:
+  - Implemented `LanguageProvider` (`localStorage['domino-lang']`, default `'es'`) and `getScenarios(lang)` translating all 12 tactical scenarios, all 10 Master Laws in `PrinciplesLibrary`, all 28-Tile Matrix diagnostics, and the full 2v2 Simulator (`App.tsx`, `MatchSimulator.tsx`, `TacticalAcademy.tsx`, `TileTracker.tsx`, `PrinciplesLibrary.tsx`).
+  - Created Spanish companion documentation (`README.es.md`, `docs/ARCHITECTURE.es.md`, `docs/TODO.es.md`) and cross-linked bilingual headers across all docs.
+
 ## 2. In Progress / Known Issues
 
-1. **Missing Playwright E2E Configuration & Test Suite**:
-   - `playwright` (`^1.65.0`) was added to `package.json` and `package-lock.json` (currently uncommitted), but no `playwright.config.ts` or `tests/` specs exist yet.
-2. **Random Bot Move Selection in React Simulator**:
-   - In `src/components/MatchSimulator.tsx` (lines 784–786), AI seats `1`, `2`, and `3` pick a random legal move (`Math.floor(Math.random() * playable.length)`) and always play `'left'` on `'both'`-end tiles instead of using a tactical heuristic.
-3. **Static Header Telemetry in `src/App.tsx`**:
-   - The top glass header bar (`src/App.tsx`, lines 65–78) renders hardcoded placeholder text (`154 - 120` Live Tournament Score and `00:00:00` Round timer) rather than live `gameScores` and round elapsed time from `MatchSimulator`.
-4. **Feature Drift Between `src/` and `dist/v2/index.html`**:
-   - Upgrades implemented in `dist/v2/index.html` (independent `.felt-shadow` layer, Web Audio tile clack synthesis, 100% Spanish Left/Right HUD labels replacing *"Tactical Coach"* / *"Partner Signaling"* / *"Tranca Risk"* / *"28-Tile Probability Matrix"*, and explicit `leftArm`/`rightArm` tracking) have not yet been ported into `src/components/`.
-5. **Working Tree & Build Hygiene**:
-   - `package.json` / `package-lock.json` have uncommitted Playwright changes.
-   - Root screenshot artifacts (`preview_v1*.png`, `screenshot.png`), `reference_apps/`, and standalone prototype directories inside `dist/` (`dist/v2/`, `dist/v-pbr-3d/`, `dist/v-sprites/`, etc.) are untracked; running `npm run build` (`vite build`) risks overwriting static sub-routes in `dist/`.
+None — all prioritized `P0`–`P3` backlog milestones have been implemented and verified.
 
 ---
 
-## 3. Next Up (Prioritized Backlog)
+## 3. Prioritized Backlog Status
 
-- **[P0] Initialize Playwright E2E Suite**:
-  - Add `playwright.config.ts` targeting `http://localhost:3333` (and Vite preview/dev webServer).
-  - Add `tests/` specs covering all 4 tabs (`Mesa`, `Academia`, `Matriz 28`, `Doctrina`), legal move highlighting, dual-end side prompt, Dominican rule toggles, 7-tile limit in `TileTracker`, and responsive mobile/desktop viewports.
-- **[P1] Backport `/v2/` Engine & UI Improvements into `src/`**:
-  - Port independent contact-shadow rendering, Web Audio clack sound effects, pure Spanish HUD labels, and explicit `leftArm`/`rightArm` seam validation from `dist/v2/index.html` into `src/components/MatchSimulator.tsx` and `src/components/DominoTile.tsx`.
-- **[P1] Replace Random AI Seat Logic with Tactical Heuristic**:
-  - Extract the heuristic scorer in `MatchSimulator.tsx` into a reusable pure module (e.g., `src/engine/coach.ts`) and use it for seats `1`, `2`, and `3` (partner respects player's *Salida*; rivals target cutting the next player and offloading doubles/heavy pips).
-- **[P2] Wire Live Score & Round Timer to Header Telemetry**:
-  - Lift `gameScores`, `handNumber`, and a live `useEffect` round timer to `App.tsx` (or shared context) to replace the static `154 - 120` and `00:00:00` header values.
-- **[P2] Clean Up Repository & Preserve Sub-Routes Properly**:
-  - Move any kept static prototypes (`v2/`, etc.) into `public/` if they should survive `vite build`, `.gitignore` temporary root preview PNGs, and commit the cleaned tree.
+- **[x] [P0] Initialize Playwright E2E Suite**: Completed (`5 passed`).
+- **[x] [P1] Backport `/v2/` Engine & UI Improvements into `src/`**: Completed (`6 passed`).
+- **[x] [P1] Replace Random AI Seat Logic with Tactical Heuristic**: Completed (`src/engine/coach.ts`).
+- **[x] [P2] Wire Live Score & Round Timer to Header Telemetry**: Completed (`data-testid="header-live-score"` & `data-testid="header-round-timer"`, `7 passed`).
+- **[x] [P2] Clean Up Repository & Preserve Sub-Routes Properly**: Completed (`public/` static prototypes + `.gitignore`, `dist/v2/index.html` verified).
+- **[x] [P3] Bilingual Documentation (ES/EN) & Full Bilingual Application (ES/EN)**:
+  - Spanish documentation companions (`README.es.md`, `docs/ARCHITECTURE.es.md`, `docs/TODO.es.md`) and bilingual cross-links across `GEMINI.md` and English docs.
+  - Persistent `ES` / `EN` language switcher (`data-testid="lang-toggle"`, `localStorage['domino-lang']`) across `App.tsx`, `MatchSimulator.tsx`, `TacticalAcademy.tsx` (+ all 12 scenarios), `TileTracker.tsx`, and `PrinciplesLibrary.tsx`.
