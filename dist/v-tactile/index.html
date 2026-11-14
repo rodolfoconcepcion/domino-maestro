@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dominó Maestro - Réplica Táctil 2.5D (Mockup Exacto)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: #060e0a;
+      color: #ffffff;
+      user-select: none;
+    }
+
+    /* =========================================================================
+       TABLE & FELT BACKGROUND
+       ========================================================================= */
+    .table-container {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at 50% 50%, #153c29 0%, #0d281a 40%, #06150d 75%, #020704 100%);
+    }
+
+    .table-felt {
+      position: absolute;
+      inset: 12px;
+      border-radius: 36px;
+      background: radial-gradient(ellipse at 50% 48%, #17452f 0%, #103322 45%, #0b2217 75%, #05130c 100%);
+      box-shadow: 
+        inset 0 0 100px rgba(0, 0, 0, 0.85),
+        inset 0 2px 4px rgba(255, 255, 255, 0.08),
+        0 0 0 1px rgba(255, 255, 255, 0.05);
+      overflow: hidden;
+    }
+
+    /* Subtle cloth fiber grain */
+    .table-felt::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+      background-size: 5px 5px;
+      opacity: 0.8;
+      pointer-events: none;
+    }
+
+    /* =========================================================================
+       FROSTED GLASS HUD PANELS (TACTICAL COACH & 28-TILE MATRIX)
+       ========================================================================= */
+    .glass-card {
+      background: rgba(14, 25, 20, 0.72);
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 18px;
+      box-shadow: 
+        0 24px 60px rgba(0, 0, 0, 0.75),
+        inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    }
+
+    .glass-section {
+      background: rgba(6, 14, 10, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+    }
+
+    /* =========================================================================
+       TACTILE IVORY DOMINO TILES (3D PBR LIGHTING)
+       ========================================================================= */
+    .domino-tile {
+      position: absolute;
+      border-radius: 8px;
+      background: linear-gradient(165deg, #ffffff 0%, #faf5ea 35%, #f1e7d4 75%, #e2d3bb 100%);
+      /* 3D Chamfered Edge + Contact Shadow */
+      box-shadow: 
+        inset 0 1.5px 1px rgba(255, 255, 255, 0.95),
+        inset 0 -1.5px 1px rgba(180, 160, 130, 0.35),
+        inset 1px 0 1px rgba(255, 255, 255, 0.8),
+        inset -1px 0 1px rgba(180, 160, 130, 0.35),
+        /* Physical tile side bevel (extrusion) */
+        0 1px 0 #ded3c0,
+        0 2.5px 0 #cfc2ac,
+        0 4px 0 #beaf98,
+        0 5px 1px rgba(0, 0, 0, 0.3),
+        /* Soft drop shadow on felt */
+        0 12px 24px -2px rgba(0, 0, 0, 0.75),
+        0 4px 8px rgba(0, 0, 0, 0.4);
+      display: flex;
+      user-select: none;
+      cursor: pointer;
+      transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s ease;
+    }
+
+    .domino-tile.vertical {
+      width: 48px;
+      height: 96px;
+      flex-direction: column;
+    }
+
+    .domino-tile.horizontal {
+      width: 96px;
+      height: 48px;
+      flex-direction: row;
+    }
+
+    .domino-tile:hover {
+      transform: translateY(-5px) scale(1.02);
+      box-shadow: 
+        inset 0 1.5px 1px rgba(255, 255, 255, 1),
+        0 2px 0 #ded3c0,
+        0 4px 0 #cfc2ac,
+        0 7px 0 #beaf98,
+        0 20px 32px -4px rgba(0, 0, 0, 0.85),
+        0 0 20px rgba(16, 185, 129, 0.3);
+    }
+
+    /* Center Divider Line */
+    .divider-h {
+      width: 100%;
+      height: 2px;
+      background: linear-gradient(90deg, #bfae8c 0%, #766444 50%, #bfae8c 100%);
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
+      position: relative;
+    }
+    .divider-v {
+      width: 2px;
+      height: 100%;
+      background: linear-gradient(180deg, #bfae8c 0%, #766444 50%, #bfae8c 100%);
+      box-shadow: 1px 0 0 rgba(255, 255, 255, 0.7);
+      position: relative;
+    }
+
+    /* Metallic Brass Spinner Rivet ("Perno") */
+    .brass-spinner {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #fffadc 0%, #e5b842 45%, #9b7218 85%, #594008 100%);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.85), inset 0 1px 0.5px rgba(255,255,255,0.9);
+      z-index: 10;
+    }
+
+    /* Debossed Pips (Dots) */
+    .pip {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #333333 0%, #151515 60%, #000000 100%);
+      box-shadow: inset 0 1.5px 2px rgba(0, 0, 0, 0.95), 0 1px 1px rgba(255, 255, 255, 0.55);
+    }
+
+    .pip-box {
+      width: 100%;
+      height: 100%;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      place-items: center;
+      padding: 4px;
+    }
+
+    /* =========================================================================
+       PHYSICAL PLAYER RACK TRAY (BOTTOM)
+       ========================================================================= */
+    .player-rack-tray {
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 14px 28px 18px;
+      border-radius: 24px;
+      background: linear-gradient(180deg, #16241c 0%, #0c1510 50%, #050a07 100%);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      box-shadow: 
+        0 24px 60px rgba(0, 0, 0, 0.95),
+        inset 0 2px 2px rgba(255, 255, 255, 0.2),
+        inset 0 -4px 10px rgba(0, 0, 0, 0.9);
+      z-index: 40;
+    }
+
+    /* Inner recessed groove of the tray */
+    .player-rack-tray::before {
+      content: '';
+      position: absolute;
+      inset: 6px 14px 10px;
+      border-radius: 18px;
+      background: #060d09;
+      box-shadow: inset 0 6px 14px rgba(0, 0, 0, 0.95), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      z-index: 1;
+    }
+
+    .hand-domino {
+      position: relative;
+      z-index: 2;
+      width: 60px;
+      height: 118px;
+      border-radius: 10px;
+      background: linear-gradient(165deg, #ffffff 0%, #faf6eb 30%, #f2e8d7 75%, #e1d2b8 100%);
+      box-shadow: 
+        inset 0 2px 1px rgba(255, 255, 255, 1),
+        inset 0 -2px 1px rgba(180, 160, 130, 0.4),
+        inset 1.5px 0 1px rgba(255, 255, 255, 0.85),
+        inset -1.5px 0 1px rgba(180, 160, 130, 0.4),
+        0 1px 0 #ded3c0,
+        0 3px 0 #cfc2ac,
+        0 5px 0 #beaf98,
+        0 10px 22px rgba(0, 0, 0, 0.9);
+      display: flex;
+      flex-direction: column;
+      cursor: pointer;
+      transition: all 0.24s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .hand-domino:hover {
+      transform: translateY(-16px) scale(1.06);
+      box-shadow: 
+        inset 0 2px 1px #ffffff,
+        0 2px 0 #ded3c0,
+        0 5px 0 #cfc2ac,
+        0 8px 0 #beaf98,
+        0 28px 40px -4px rgba(0, 0, 0, 0.95),
+        0 0 24px rgba(52, 211, 153, 0.5);
+    }
+
+    /* =========================================================================
+       OPPONENT TILES (TOP, LEFT, RIGHT) - TACTILE 2.5D
+       ========================================================================= */
+    /* Top Partner Hand (7 Backs) */
+    .top-opponent-rack {
+      position: fixed;
+      top: 76px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 5px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      background: linear-gradient(180deg, #111a14 0%, #080d0a 100%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 16px 30px rgba(0, 0, 0, 0.8);
+      z-index: 20;
+    }
+
+    .top-opponent-tile {
+      width: 44px;
+      height: 28px;
+      border-radius: 5px;
+      background: linear-gradient(180deg, #ffffff 0%, #faf5eb 45%, #e6d7be 100%);
+      box-shadow: 
+        inset 0 1.5px 1px rgba(255, 255, 255, 1),
+        inset 0 -1.5px 1px rgba(180, 160, 130, 0.35),
+        0 1px 0 #ded3c0,
+        0 3px 0 #bfb098,
+        0 8px 16px rgba(0, 0, 0, 0.8);
+      position: relative;
+    }
+    .top-opponent-tile::before {
+      content: '';
+      position: absolute;
+      top: -5px;
+      left: 0;
+      right: 0;
+      height: 5px;
+      border-radius: 4px 4px 0 0;
+      background: linear-gradient(90deg, #ffffff 0%, #faf4e6 50%, #eddcc0 100%);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 1);
+    }
+
+    /* Left & Right Side Opponent Hands (Vertical Stacks angled inward) */
+    .left-opponent-rack {
+      position: fixed;
+      left: 310px;
+      top: 50%;
+      transform: translateY(-50%) rotate(7deg);
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      padding: 8px 6px;
+      border-radius: 8px;
+      background: linear-gradient(90deg, #111a14 0%, #080d0a 100%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 16px 30px rgba(0, 0, 0, 0.8);
+      z-index: 20;
+    }
+
+    .right-opponent-rack {
+      position: fixed;
+      right: 310px;
+      top: 50%;
+      transform: translateY(-50%) rotate(-7deg);
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      padding: 8px 6px;
+      border-radius: 8px;
+      background: linear-gradient(-90deg, #111a14 0%, #080d0a 100%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 16px 30px rgba(0, 0, 0, 0.8);
+      z-index: 20;
+    }
+
+    .side-opponent-tile {
+      width: 26px;
+      height: 44px;
+      border-radius: 5px;
+      background: linear-gradient(160deg, #ffffff 0%, #faf5eb 50%, #e2d2b5 100%);
+      box-shadow: 
+        inset 0 1.5px 1px rgba(255, 255, 255, 1),
+        inset 0 -1.5px 1px rgba(180, 160, 130, 0.35),
+        0 1px 0 #ded3c0,
+        0 3px 0 #bfb098,
+        0 8px 16px rgba(0, 0, 0, 0.8);
+    }
+
+    /* =========================================================================
+       28-TILE MATRIX CELLS
+       ========================================================================= */
+    .mat-cell {
+      height: 22px;
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .mat-emerald {
+      background: #10b981;
+      color: #032b18;
+    }
+    .mat-amber {
+      background: #f59e0b;
+      color: #451a03;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- FELT TABLE WRAPPER -->
+  <div class="table-container">
+    <div class="table-felt">
+
+      <!-- =====================================================================
+           PLAYED DOMINOES CHAIN (CENTER TABLE) - EXACT MOCKUP CONFIGURATION
+           ===================================================================== -->
+      <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div class="relative w-[600px] h-[360px] pointer-events-auto">
+
+          <!-- 1. Horizontal [1 | 0] at left -->
+          <div class="domino-tile horizontal" style="left: 40px; top: 140px;">
+            <div class="pip-box">
+              <div></div><div></div><div></div>
+              <div></div><div class="pip"></div><div></div>
+              <div></div><div></div><div></div>
+            </div>
+            <div class="divider-v"><div class="brass-spinner"></div></div>
+            <div class="pip-box"></div>
+          </div>
+
+          <!-- 2. Vertical [4 | 1] crossing -->
+          <div class="domino-tile vertical" style="left: 120px; top: 116px;">
+            <div class="pip-box">
+              <div class="pip"></div><div></div><div class="pip"></div>
+              <div></div><div></div><div></div>
+              <div class="pip"></div><div></div><div class="pip"></div>
+            </div>
+            <div class="divider-h"><div class="brass-spinner"></div></div>
+            <div class="pip-box">
+              <div></div><div></div><div></div>
+              <div></div><div class="pip"></div><div></div>
+              <div></div><div></div><div></div>
+            </div>
+          </div>
+
+          <!-- 3. Horizontal [4 | 4] double -->
+          <div class="domino-tile horizontal" style="left: 172px; top: 140px;">
+            <div class="pip-box">
+              <div class="pip"></div><div></div><div class="pip"></div>
+              <div></div><div></div><div></div>
+              <div class="pip"></div><div></div><div class="pip"></div>
+            </div>
+            <div class="divider-v"><div class="brass-spinner"></div></div>
+            <div class="pip-box">
+              <div class="pip"></div><div></div><div class="pip"></div>
+              <div></div><div></div><div></div>
+              <div class="pip"></div><div></div><div class="pip"></div>
+            </div>
+          </div>
+
+          <!-- 4. Horizontal [4 | 2] -->
+          <div class="domino-tile horizontal" style="left: 272px; top: 140px;">
+            <div class="pip-box">
+              <div class="pip"></div><div></div><div class="pip"></div>
+              <div></div><div></div><div></div>
+              <div class="pip"></div><div></div><div class="pip"></div>
+            </div>
+            <div class="divider-v"><div class="brass-spinner"></div></div>
+            <div class="pip-box">
+              <div class="pip"></div><div></div><div></div>
+              <div></div><div></div><div></div>
+              <div></div><div></div><div class="pip"></div>
+            </div>
+          </div>
+
+          <!-- 5. Vertical [2 | 2] double spinner -->
+          <div class="domino-tile vertical" style="left: 372px; top: 116px;">
+            <div class="pip-box">
+              <div class="pip"></div><div></div><div></div>
+              <div></div><div></div><div></div>
+              <div></div><div></div><div class="pip"></div>
+            </div>
+            <div class="divider-h"><div class="brass-spinner"></div></div>
+            <div class="pip-box">
+              <div class="pip"></div><div></div><div></div>
+              <div></div><div></div><div></div>
+              <div></div><div></div><div class="pip"></div>
+            </div>
+          </div>
+
+          <!-- 6. Horizontal Top Branch [6 | 6] double -->
+          <div class="domino-tile horizontal" style="left: 230px; top: 80px;">
+            <div class="pip-box">
+              <div class="pip"></div><div></div><div class="pip"></div>
+              <div class="pip"></div><div></div><div class="pip"></div>
+              <div class="pip"></div><div></div><div class="pip"></div>
+            </div>
+            <div class="divider-v"><div class="brass-spinner"></div></div>
+            <div class="pip-box">
+              <div class="pip"></div><div></div><div class="pip"></div>
+              <div class="pip"></div><div></div><div class="pip"></div>
+              <div class="pip"></div><div></div><div class="pip"></div>
+            </div>
+          </div>
+
+          <!-- 7. Horizontal Top Right [6 | 3] -->
+          <div class="domino-tile horizontal" style="left: 330px; top: 80px;">
+            <div class="pip-box">
+              <div class="pip"></div><div></div><div class="pip"></div>
+              <div class="pip"></div><div></div><div class="pip"></div>
+              <div class="pip"></div><div></div><div class="pip"></div>
+            </div>
+            <div class="divider-v"><div class="brass-spinner"></div></div>
+            <div class="pip-box">
+              <div class="pip"></div><div></div><div></div>
+              <div></div><div class="pip"></div><div></div>
+              <div></div><div></div><div class="pip"></div>
+            </div>
+          </div>
+
+          <!-- 8. Vertical Column Branch [3 | 5] -->
+          <div class="domino-tile vertical" style="left: 430px; top: 66px;">
+            <div class="pip-box">
+              <div class="pip"></div><div></div><div></div>
+              <div></div><div class="pip"></div><div></div>
+              <div></div><div></div><div class="pip"></div>
+            </div>
+            <div class="divider-h"><div class="brass-spinner"></div></div>
+            <div class="pip-box">
+              <div class="pip"></div><div></div><div class="pip"></div>
+              <div></div><div class="pip"></div><div></div>
+              <div class="pip"></div><div></div><div class="pip"></div>
+            </div>
+          </div>
+
+          <!-- 9. Vertical Column Branch [5 | 1] -->
+          <div class="domino-tile vertical" style="left: 430px; top: 166px;">
+            <div class="pip-box">
+              <div class="pip"></div><div></div><div class="pip"></div>
+              <div></div><div class="pip"></div><div></div>
+              <div class="pip"></div><div></div><div class="pip"></div>
+            </div>
+            <div class="divider-h"><div class="brass-spinner"></div></div>
+            <div class="pip-box">
+              <div></div><div></div><div></div>
+              <div></div><div class="pip"></div><div></div>
+              <div></div><div></div><div></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       TOP APPLICATION BAR
+       ========================================================================= -->
+  <header class="fixed top-0 left-0 right-0 h-14 z-50 flex items-center justify-between px-6 bg-[#040d08]/85 backdrop-blur-md border-b border-white/10">
+    <div class="flex items-center space-x-3">
+      <button class="text-zinc-400 hover:text-white transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+      </button>
+      <div class="flex items-center space-x-2">
+        <span class="font-extrabold tracking-wider text-sm sm:text-base text-white">DOMINÓ MAESTRO</span>
+        <span class="text-sm">🇩🇴</span>
+      </div>
+    </div>
+
+    <!-- Match Scoreboard -->
+    <div class="flex items-center space-x-3 px-4 py-1.5 rounded-2xl bg-black/55 border border-white/10 backdrop-blur-md shadow-xl">
+      <div class="flex items-center space-x-1.5">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span class="text-xs font-black tracking-widest text-emerald-400">LIVE</span>
+      </div>
+      <div class="h-3.5 w-px bg-white/20"></div>
+      <div class="text-center">
+        <div class="text-[9px] uppercase font-bold tracking-widest text-zinc-400">Live tournament score</div>
+        <div class="text-lg font-black text-white font-mono tracking-wider leading-none">154 <span class="text-zinc-500">-</span> 120</div>
+      </div>
+      <div class="h-3.5 w-px bg-white/20"></div>
+      <div class="text-center">
+        <div class="text-[9px] uppercase font-bold tracking-widest text-zinc-400">Round</div>
+        <div class="text-sm font-bold text-white font-mono leading-none">00:00:00</div>
+      </div>
+    </div>
+
+    <!-- Actions & Profile -->
+    <div class="flex items-center space-x-3 text-zinc-400">
+      <button class="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition">
+        <span class="text-xs font-bold">?</span>
+      </button>
+      <button class="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition relative">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+        <span class="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-400"></span>
+      </button>
+      <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 p-[1px] cursor-pointer">
+        <div class="w-full h-full rounded-full bg-zinc-900 flex items-center justify-center">
+          <span class="text-xs font-bold text-emerald-400">RC</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- =========================================================================
+       LEFT HUD: TACTICAL COACH (DOMINICAN MASTER DOCTRINE)
+       ========================================================================= -->
+  <aside class="fixed left-6 top-20 bottom-8 w-72 glass-card p-5 flex flex-col justify-between z-30">
+    <div>
+      <div class="flex items-center justify-between mb-1">
+        <h2 class="text-base font-extrabold text-white">Tactical Coach</h2>
+        <span class="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-[10px] font-extrabold text-emerald-400 tracking-wider">LIVE</span>
+      </div>
+      <p class="text-xs text-zinc-400 mb-5">Dominican domino strategy</p>
+
+      <!-- La Salida Strategy -->
+      <div class="glass-section p-3.5 mb-3.5">
+        <div class="text-xs font-bold text-zinc-200 mb-0.5">La Salida</div>
+        <div class="text-[10px] text-zinc-400 mb-2">Dominican domino strategy</div>
+        <div class="flex items-center justify-between text-[11px] font-bold font-mono mb-1.5">
+          <span class="text-emerald-400">39%</span>
+          <span class="text-amber-400">38%</span>
+        </div>
+        <div class="h-2 w-full bg-zinc-800 rounded-full overflow-hidden flex mb-2">
+          <div class="h-full bg-emerald-400 rounded-l-full" style="width: 39%;"></div>
+          <div class="h-full bg-amber-400 rounded-r-full" style="width: 38%;"></div>
+        </div>
+        <div class="flex justify-between text-[9px] text-zinc-500 font-mono px-0.5">
+          <span>1</span><span>3</span><span>5</span><span>10</span><span>5</span>
+        </div>
+      </div>
+
+      <!-- Partner Signaling -->
+      <div class="glass-section p-3.5 mb-3.5">
+        <div class="flex items-center justify-between text-xs font-bold mb-2">
+          <span class="text-zinc-200">Partner Signaling</span>
+          <span class="text-emerald-400 font-mono">57%</span>
+        </div>
+        <div class="h-2 w-full bg-zinc-800 rounded-full overflow-hidden">
+          <div class="h-full bg-emerald-400 rounded-full" style="width: 57%;"></div>
+        </div>
+      </div>
+
+      <!-- Tranca Risk -->
+      <div class="glass-section p-3.5">
+        <div class="flex items-center justify-between text-xs font-bold mb-2">
+          <span class="text-zinc-200">Tranca Risk</span>
+          <span class="text-red-400 font-mono">12%</span>
+        </div>
+        <div class="h-2 w-full bg-zinc-800 rounded-full overflow-hidden">
+          <div class="h-full bg-red-500 rounded-full" style="width: 12%;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Match Hard Action Button -->
+    <button class="w-full py-2.5 rounded-xl bg-zinc-800/80 hover:bg-zinc-700/80 border border-white/10 text-xs font-bold text-zinc-200 transition shadow-lg shadow-black/40">
+      Match hard
+    </button>
+  </aside>
+
+  <!-- =========================================================================
+       RIGHT HUD: 28-TILE PROBABILITY MATRIX
+       ========================================================================= -->
+  <aside class="fixed right-6 top-20 bottom-8 w-72 glass-card p-5 flex flex-col justify-between z-30">
+    <div>
+      <h2 class="text-base font-extrabold text-white mb-0.5">28-Tile Probability Matrix</h2>
+      <p class="text-xs text-zinc-400 mb-4">Tracker in lowest 28-Tile</p>
+
+      <!-- Emerald / Amber Toggles -->
+      <div class="grid grid-cols-2 gap-2 mb-4">
+        <button class="py-1.5 rounded-lg bg-emerald-950/70 border border-emerald-500/40 text-emerald-400 text-xs font-bold">
+          Emerald
+        </button>
+        <button class="py-1.5 rounded-lg bg-amber-950/40 border border-amber-500/30 text-amber-400 text-xs font-bold">
+          Amber
+        </button>
+      </div>
+
+      <!-- 6x6 Matrix Grid matching the Mockup -->
+      <div class="grid grid-cols-6 gap-1 mb-5">
+        <!-- Row 1 -->
+        <div class="mat-cell mat-emerald">3</div>
+        <div class="mat-cell mat-emerald">5</div>
+        <div class="mat-cell mat-emerald">5</div>
+        <div class="mat-cell mat-amber">3</div>
+        <div class="mat-cell mat-amber">5</div>
+        <div class="mat-cell mat-amber">8</div>
+        <!-- Row 2 -->
+        <div class="mat-cell mat-emerald">3</div>
+        <div class="mat-cell mat-emerald">5</div>
+        <div class="mat-cell mat-emerald">5</div>
+        <div class="mat-cell mat-amber">8</div>
+        <div class="mat-cell mat-amber">10</div>
+        <div class="mat-cell mat-amber">8</div>
+        <!-- Row 3 -->
+        <div class="mat-cell mat-emerald">1</div>
+        <div class="mat-cell mat-emerald">5</div>
+        <div class="mat-cell mat-emerald">5</div>
+        <div class="mat-cell mat-amber">8</div>
+        <div class="mat-cell mat-amber">4</div>
+        <div class="mat-cell mat-amber">4</div>
+        <!-- Row 4 -->
+        <div class="mat-cell mat-emerald">1</div>
+        <div class="mat-cell mat-emerald">3</div>
+        <div class="mat-cell mat-emerald">5</div>
+        <div class="mat-cell mat-amber">4</div>
+        <div class="mat-cell mat-amber">3</div>
+        <div class="mat-cell mat-amber">4</div>
+        <!-- Row 5 -->
+        <div class="mat-cell mat-emerald">1</div>
+        <div class="mat-cell mat-emerald">2</div>
+        <div class="mat-cell mat-emerald">3</div>
+        <div class="mat-cell mat-amber">1</div>
+        <div class="mat-cell mat-amber">2</div>
+        <div class="mat-cell mat-amber">4</div>
+        <!-- Row 6 -->
+        <div class="mat-cell mat-emerald">1</div>
+        <div class="mat-cell mat-emerald">2</div>
+        <div class="mat-cell mat-emerald">3</div>
+        <div class="mat-cell mat-amber">1</div>
+        <div class="mat-cell mat-amber">2</div>
+        <div class="mat-cell mat-amber">2</div>
+      </div>
+
+      <!-- Live Counters -->
+      <div class="space-y-2.5 text-xs">
+        <div class="flex items-center justify-between text-zinc-300">
+          <span>Card Counting</span>
+          <span class="font-bold font-mono text-white">14</span>
+        </div>
+        <div class="flex items-center justify-between text-zinc-300">
+          <span>Neon emerald</span>
+          <span class="font-bold font-mono text-emerald-400">30</span>
+        </div>
+        <div>
+          <div class="flex items-center justify-between text-zinc-300 mb-1">
+            <span>Card counting</span>
+            <span class="font-bold font-mono text-amber-400">2/6</span>
+          </div>
+          <div class="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden">
+            <div class="h-full bg-amber-400 rounded-full" style="width: 33%;"></div>
+          </div>
+        </div>
+        <div class="flex items-center justify-between text-zinc-300">
+          <span>Card counting</span>
+          <span class="font-bold font-mono text-zinc-400">0</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- =========================================================================
+       OPPONENT TILES (TOP, LEFT, RIGHT)
+       ========================================================================= -->
+  <!-- Top Partner (7 standing upright) -->
+  <div class="top-opponent-rack">
+    <div class="top-opponent-tile"></div>
+    <div class="top-opponent-tile"></div>
+    <div class="top-opponent-tile"></div>
+    <div class="top-opponent-tile"></div>
+    <div class="top-opponent-tile"></div>
+    <div class="top-opponent-tile"></div>
+    <div class="top-opponent-tile"></div>
+  </div>
+
+  <!-- Left Opponent (7 standing tiles angled inward) -->
+  <div class="left-opponent-rack">
+    <div class="side-opponent-tile"></div>
+    <div class="side-opponent-tile"></div>
+    <div class="side-opponent-tile"></div>
+    <div class="side-opponent-tile"></div>
+    <div class="side-opponent-tile"></div>
+    <div class="side-opponent-tile"></div>
+    <div class="side-opponent-tile"></div>
+  </div>
+
+  <!-- Right Opponent (7 standing tiles angled inward) -->
+  <div class="right-opponent-rack">
+    <div class="side-opponent-tile"></div>
+    <div class="side-opponent-tile"></div>
+    <div class="side-opponent-tile"></div>
+    <div class="side-opponent-tile"></div>
+    <div class="side-opponent-tile"></div>
+    <div class="side-opponent-tile"></div>
+    <div class="side-opponent-tile"></div>
+  </div>
+
+  <!-- =========================================================================
+       PHYSICAL PLAYER RACK TRAY (BOTTOM 7 TILES)
+       ========================================================================= -->
+  <div class="player-rack-tray">
+    
+    <!-- Tile 1: [1 | 4] -->
+    <div class="hand-domino">
+      <div class="pip-box">
+        <div></div><div></div><div></div>
+        <div></div><div class="pip"></div><div></div>
+        <div></div><div></div><div></div>
+      </div>
+      <div class="divider-h"><div class="brass-spinner"></div></div>
+      <div class="pip-box">
+        <div class="pip"></div><div></div><div class="pip"></div>
+        <div></div><div></div><div></div>
+        <div class="pip"></div><div></div><div class="pip"></div>
+      </div>
+    </div>
+
+    <!-- Tile 2: [1 | 5] -->
+    <div class="hand-domino">
+      <div class="pip-box">
+        <div></div><div></div><div></div>
+        <div></div><div class="pip"></div><div></div>
+        <div></div><div></div><div></div>
+      </div>
+      <div class="divider-h"><div class="brass-spinner"></div></div>
+      <div class="pip-box">
+        <div class="pip"></div><div></div><div class="pip"></div>
+        <div></div><div class="pip"></div><div></div>
+        <div class="pip"></div><div></div><div class="pip"></div>
+      </div>
+    </div>
+
+    <!-- Tile 3: [2 | 5] -->
+    <div class="hand-domino">
+      <div class="pip-box">
+        <div class="pip"></div><div></div><div></div>
+        <div></div><div></div><div></div>
+        <div></div><div></div><div class="pip"></div>
+      </div>
+      <div class="divider-h"><div class="brass-spinner"></div></div>
+      <div class="pip-box">
+        <div class="pip"></div><div></div><div class="pip"></div>
+        <div></div><div class="pip"></div><div></div>
+        <div class="pip"></div><div></div><div class="pip"></div>
+      </div>
+    </div>
+
+    <!-- Tile 4: [3 | 5] -->
+    <div class="hand-domino">
+      <div class="pip-box">
+        <div class="pip"></div><div></div><div></div>
+        <div></div><div class="pip"></div><div></div>
+        <div></div><div></div><div class="pip"></div>
+      </div>
+      <div class="divider-h"><div class="brass-spinner"></div></div>
+      <div class="pip-box">
+        <div class="pip"></div><div></div><div class="pip"></div>
+        <div></div><div class="pip"></div><div></div>
+        <div class="pip"></div><div></div><div class="pip"></div>
+      </div>
+    </div>
+
+    <!-- Tile 5: [4 | 5] -->
+    <div class="hand-domino">
+      <div class="pip-box">
+        <div class="pip"></div><div></div><div class="pip"></div>
+        <div></div><div></div><div></div>
+        <div class="pip"></div><div></div><div class="pip"></div>
+      </div>
+      <div class="divider-h"><div class="brass-spinner"></div></div>
+      <div class="pip-box">
+        <div class="pip"></div><div></div><div class="pip"></div>
+        <div></div><div class="pip"></div><div></div>
+        <div class="pip"></div><div></div><div class="pip"></div>
+      </div>
+    </div>
+
+    <!-- Tile 6: [5 | 5] -->
+    <div class="hand-domino">
+      <div class="pip-box">
+        <div class="pip"></div><div></div><div class="pip"></div>
+        <div></div><div class="pip"></div><div></div>
+        <div class="pip"></div><div></div><div class="pip"></div>
+      </div>
+      <div class="divider-h"><div class="brass-spinner"></div></div>
+      <div class="pip-box">
+        <div class="pip"></div><div></div><div class="pip"></div>
+        <div></div><div class="pip"></div><div></div>
+        <div class="pip"></div><div></div><div class="pip"></div>
+      </div>
+    </div>
+
+    <!-- Tile 7: [0 | 0] Blank -->
+    <div class="hand-domino">
+      <div class="pip-box"></div>
+      <div class="divider-h"><div class="brass-spinner"></div></div>
+      <div class="pip-box"></div>
+    </div>
+
+  </div>
+
+  <script>
+    // Interactive Hand Tile Selection
+    const handTiles = document.querySelectorAll('.hand-domino');
+    handTiles.forEach((tile) => {
+      tile.addEventListener('click', () => {
+        const isSelected = tile.classList.contains('ring-2');
+        handTiles.forEach(t => t.classList.remove('ring-2', 'ring-emerald-400', '-translate-y-4'));
+        if (!isSelected) {
+          tile.classList.add('ring-2', 'ring-emerald-400', '-translate-y-4');
+        }
+      });
+    });
+
+    // Emerald / Amber Matrix Toggle
+    const emeraldBtn = document.querySelectorAll('.grid-cols-2 button')[0];
+    const amberBtn = document.querySelectorAll('.grid-cols-2 button')[1];
+    if (emeraldBtn && amberBtn) {
+      emeraldBtn.addEventListener('click', () => {
+        emeraldBtn.className = "py-1.5 rounded-lg bg-emerald-950/70 border border-emerald-500/40 text-emerald-400 text-xs font-bold transition";
+        amberBtn.className = "py-1.5 rounded-lg bg-transparent border border-white/10 text-zinc-400 text-xs font-bold transition hover:text-white";
+      });
+      amberBtn.addEventListener('click', () => {
+        amberBtn.className = "py-1.5 rounded-lg bg-amber-950/70 border border-amber-500/40 text-amber-400 text-xs font-bold transition";
+        emeraldBtn.className = "py-1.5 rounded-lg bg-transparent border border-white/10 text-zinc-400 text-xs font-bold transition hover:text-white";
+      });
+    }
+  </script>
+
+</body>
+</html>

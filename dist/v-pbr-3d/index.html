@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dominó Maestro - Opción 2: Three.js 3D con Normal Maps & PBR Shading</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: #020704;
+      color: #ffffff;
+      user-select: none;
+    }
+    #pbr-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      z-index: 1;
+    }
+    /* Floating Glass HUD */
+    .glass-hud {
+      background: rgba(14, 25, 20, 0.72);
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 18px;
+      box-shadow: 
+        0 24px 60px rgba(0, 0, 0, 0.8),
+        inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    }
+    .glass-subcard {
+      background: rgba(6, 14, 10, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+    }
+    .mat-cell {
+      height: 22px;
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .mat-emerald { background: #10b981; color: #032b18; }
+    .mat-amber { background: #f59e0b; color: #451a03; }
+  </style>
+</head>
+<body>
+
+  <!-- THREE.JS 3D PBR CANVAS -->
+  <canvas id="pbr-canvas"></canvas>
+
+  <!-- =========================================================================
+       TOP APPLICATION BAR
+       ========================================================================= -->
+  <header class="fixed top-0 left-0 right-0 h-14 z-30 flex items-center justify-between px-6 bg-[#040d08]/85 backdrop-blur-md border-b border-white/10 pointer-events-auto">
+    <div class="flex items-center space-x-3">
+      <button class="text-zinc-400 hover:text-white transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+      </button>
+      <div class="flex items-center space-x-2">
+        <span class="font-extrabold tracking-wider text-sm sm:text-base text-white">DOMINÓ MAESTRO</span>
+        <span class="text-sm">🇩🇴</span>
+        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-400">3D NORMAL MAPS</span>
+      </div>
+    </div>
+
+    <!-- Match Scoreboard -->
+    <div class="flex items-center space-x-3 px-4 py-1.5 rounded-2xl bg-black/55 border border-white/10 backdrop-blur-md shadow-xl">
+      <div class="flex items-center space-x-1.5">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span class="text-xs font-black tracking-widest text-emerald-400">LIVE</span>
+      </div>
+      <div class="h-3.5 w-px bg-white/20"></div>
+      <div class="text-center">
+        <div class="text-[9px] uppercase font-bold tracking-widest text-zinc-400">Live tournament score</div>
+        <div class="text-lg font-black text-white font-mono tracking-wider leading-none">154 <span class="text-zinc-500">-</span> 120</div>
+      </div>
+      <div class="h-3.5 w-px bg-white/20"></div>
+      <div class="text-center">
+        <div class="text-[9px] uppercase font-bold tracking-widest text-zinc-400">Round</div>
+        <div class="text-sm font-bold text-white font-mono leading-none">00:00:00</div>
+      </div>
+    </div>
+
+    <!-- Actions & Profile -->
+    <div class="flex items-center space-x-3 text-zinc-400">
+      <button class="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition">
+        <span class="text-xs font-bold">?</span>
+      </button>
+      <button class="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition relative">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+        <span class="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-400"></span>
+      </button>
+      <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 p-[1px] cursor-pointer">
+        <div class="w-full h-full rounded-full bg-zinc-900 flex items-center justify-center">
+          <span class="text-xs font-bold text-emerald-400">RC</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- =========================================================================
+       LEFT HUD: TACTICAL COACH (DOMINICAN MASTER DOCTRINE)
+       ========================================================================= -->
+  <aside class="fixed left-6 top-20 bottom-8 w-72 glass-hud p-5 flex flex-col justify-between z-20 pointer-events-auto">
+    <div>
+      <div class="flex items-center justify-between mb-1">
+        <h2 class="text-base font-extrabold text-white">Tactical Coach</h2>
+        <span class="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-[10px] font-extrabold text-emerald-400 tracking-wider">LIVE</span>
+      </div>
+      <p class="text-xs text-zinc-400 mb-5">Dominican domino strategy</p>
+
+      <!-- La Salida Strategy -->
+      <div class="glass-subcard p-3.5 mb-3.5">
+        <div class="text-xs font-bold text-zinc-200 mb-0.5">La Salida</div>
+        <div class="text-[10px] text-zinc-400 mb-2">Dominican domino strategy</div>
+        <div class="flex items-center justify-between text-[11px] font-bold font-mono mb-1.5">
+          <span class="text-emerald-400">39%</span>
+          <span class="text-amber-400">38%</span>
+        </div>
+        <div class="h-2 w-full bg-zinc-800 rounded-full overflow-hidden flex mb-2">
+          <div class="h-full bg-emerald-400 rounded-l-full" style="width: 39%;"></div>
+          <div class="h-full bg-amber-400 rounded-r-full" style="width: 38%;"></div>
+        </div>
+        <div class="flex justify-between text-[9px] text-zinc-500 font-mono px-0.5">
+          <span>1</span><span>3</span><span>5</span><span>10</span><span>5</span>
+        </div>
+      </div>
+
+      <!-- Partner Signaling -->
+      <div class="glass-subcard p-3.5 mb-3.5">
+        <div class="flex items-center justify-between text-xs font-bold mb-2">
+          <span class="text-zinc-200">Partner Signaling</span>
+          <span class="text-emerald-400 font-mono">57%</span>
+        </div>
+        <div class="h-2 w-full bg-zinc-800 rounded-full overflow-hidden">
+          <div class="h-full bg-emerald-400 rounded-full" style="width: 57%;"></div>
+        </div>
+      </div>
+
+      <!-- Tranca Risk -->
+      <div class="glass-subcard p-3.5">
+        <div class="flex items-center justify-between text-xs font-bold mb-2">
+          <span class="text-zinc-200">Tranca Risk</span>
+          <span class="text-red-400 font-mono">12%</span>
+        </div>
+        <div class="h-2 w-full bg-zinc-800 rounded-full overflow-hidden">
+          <div class="h-full bg-red-500 rounded-full" style="width: 12%;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Match Hard Action Button -->
+    <button class="w-full py-2.5 rounded-xl bg-zinc-800/80 hover:bg-zinc-700/80 border border-white/10 text-xs font-bold text-zinc-200 transition shadow-lg shadow-black/40">
+      Match hard
+    </button>
+  </aside>
+
+  <!-- =========================================================================
+       RIGHT HUD: 28-TILE PROBABILITY MATRIX
+       ========================================================================= -->
+  <aside class="fixed right-6 top-20 bottom-8 w-72 glass-hud p-5 flex flex-col justify-between z-20 pointer-events-auto">
+    <div>
+      <h2 class="text-base font-extrabold text-white mb-0.5">28-Tile Probability Matrix</h2>
+      <p class="text-xs text-zinc-400 mb-4">Tracker in lowest 28-Tile</p>
+
+      <!-- Emerald / Amber Toggles -->
+      <div class="grid grid-cols-2 gap-2 mb-4">
+        <button id="btn-emerald" class="py-1.5 rounded-lg bg-emerald-950/70 border border-emerald-500/40 text-emerald-400 text-xs font-bold">
+          Emerald
+        </button>
+        <button id="btn-amber" class="py-1.5 rounded-lg bg-amber-950/40 border border-amber-500/30 text-amber-400 text-xs font-bold">
+          Amber
+        </button>
+      </div>
+
+      <!-- 6x6 Matrix Grid matching the Mockup -->
+      <div class="grid grid-cols-6 gap-1 mb-5">
+        <div class="mat-cell mat-emerald">3</div><div class="mat-cell mat-emerald">5</div><div class="mat-cell mat-emerald">5</div><div class="mat-cell mat-amber">3</div><div class="mat-cell mat-amber">5</div><div class="mat-cell mat-amber">8</div>
+        <div class="mat-cell mat-emerald">3</div><div class="mat-cell mat-emerald">5</div><div class="mat-cell mat-emerald">5</div><div class="mat-cell mat-amber">8</div><div class="mat-cell mat-amber">10</div><div class="mat-cell mat-amber">8</div>
+        <div class="mat-cell mat-emerald">1</div><div class="mat-cell mat-emerald">5</div><div class="mat-cell mat-emerald">5</div><div class="mat-cell mat-amber">8</div><div class="mat-cell mat-amber">4</div><div class="mat-cell mat-amber">4</div>
+        <div class="mat-cell mat-emerald">1</div><div class="mat-cell mat-emerald">3</div><div class="mat-cell mat-emerald">5</div><div class="mat-cell mat-amber">4</div><div class="mat-cell mat-amber">3</div><div class="mat-cell mat-amber">4</div>
+        <div class="mat-cell mat-emerald">1</div><div class="mat-cell mat-emerald">2</div><div class="mat-cell mat-emerald">3</div><div class="mat-cell mat-amber">1</div><div class="mat-cell mat-amber">2</div><div class="mat-cell mat-amber">4</div>
+        <div class="mat-cell mat-emerald">1</div><div class="mat-cell mat-emerald">2</div><div class="mat-cell mat-emerald">3</div><div class="mat-cell mat-amber">1</div><div class="mat-cell mat-amber">2</div><div class="mat-cell mat-amber">2</div>
+      </div>
+
+      <!-- Live Counters -->
+      <div class="space-y-2.5 text-xs">
+        <div class="flex items-center justify-between text-zinc-300">
+          <span>Card Counting</span>
+          <span class="font-bold font-mono text-white">14</span>
+        </div>
+        <div class="flex items-center justify-between text-zinc-300">
+          <span>Neon emerald</span>
+          <span class="font-bold font-mono text-emerald-400">30</span>
+        </div>
+        <div>
+          <div class="flex items-center justify-between text-zinc-300 mb-1">
+            <span>Card counting</span>
+            <span class="font-bold font-mono text-amber-400">2/6</span>
+          </div>
+          <div class="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden">
+            <div class="h-full bg-amber-400 rounded-full" style="width: 33%;"></div>
+          </div>
+        </div>
+        <div class="flex items-center justify-between text-zinc-300">
+          <span>Card counting</span>
+          <span class="font-bold font-mono text-zinc-400">0</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- =========================================================================
+       THREE.JS ADVANCED PBR ENGINE (NORMAL MAPS + HDR STUDIO REFLECTIONS)
+       ========================================================================= -->
+  <script>
+    const canvas = document.getElementById('pbr-canvas');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.1;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x040b07);
+
+    // =========================================================================
+    // PROCEDURAL CASINO STUDIO ENVIRONMENT MAP (FOR METALLIC & CLEARCOAT REFLECTION)
+    // =========================================================================
+    function createStudioEnvironmentMap() {
+      const c = document.createElement('canvas');
+      c.width = 512;
+      c.height = 256;
+      const ctx = c.getContext('2d');
+
+      // Warm casino room gradient
+      const grad = ctx.createLinearGradient(0, 0, 0, 256);
+      grad.addColorStop(0, '#1a3325');
+      grad.addColorStop(0.4, '#102419');
+      grad.addColorStop(0.7, '#07120c');
+      grad.addColorStop(1, '#020604');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 512, 256);
+
+      // Overhead softbox light panel
+      ctx.fillStyle = '#fff9e8';
+      ctx.filter = 'blur(16px)';
+      ctx.fillRect(156, 20, 200, 60);
+
+      // Warm ambient side lights
+      ctx.fillStyle = '#ffeed0';
+      ctx.fillRect(40, 60, 40, 100);
+      ctx.fillRect(432, 60, 40, 100);
+
+      const texture = new THREE.CanvasTexture(c);
+      texture.mapping = THREE.EquirectangularReflectionMapping;
+      return texture;
+    }
+
+    const envMap = createStudioEnvironmentMap();
+    scene.environment = envMap;
+
+    // CAMERA: ELEVATED PERSPECTIVE VIEW
+    const camera = new THREE.PerspectiveCamera(34, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 15.2, 17.0);
+    camera.lookAt(0, 0.1, -0.6);
+
+    // =========================================================================
+    // LIGHTING (OVERHEAD CASINO SPOTLIGHT + WARM FILL)
+    // =========================================================================
+    const ambientLight = new THREE.AmbientLight(0x223c2e, 1.4);
+    scene.add(ambientLight);
+
+    const tableSpot = new THREE.SpotLight(0xfffaeb, 2.2, 35, Math.PI / 3.2, 0.55, 1.2);
+    tableSpot.position.set(0, 15, 0);
+    tableSpot.target.position.set(0, 0, 0);
+    tableSpot.castShadow = true;
+    tableSpot.shadow.mapSize.width = 2048;
+    tableSpot.shadow.mapSize.height = 2048;
+    tableSpot.shadow.bias = -0.0003;
+    tableSpot.shadow.radius = 2.4;
+    scene.add(tableSpot);
+    scene.add(tableSpot.target);
+
+    const keySun = new THREE.DirectionalLight(0xfff5e2, 0.85);
+    keySun.position.set(8, 20, 12);
+    keySun.castShadow = true;
+    keySun.shadow.mapSize.width = 2048;
+    keySun.shadow.mapSize.height = 2048;
+    keySun.shadow.bias = -0.0003;
+    keySun.shadow.radius = 2.0;
+    scene.add(keySun);
+
+    // =========================================================================
+    // CASINO FELT BOARD
+    // =========================================================================
+    function createFeltMat() {
+      const fc = document.createElement('canvas');
+      fc.width = 1024;
+      fc.height = 1024;
+      const ctx = fc.getContext('2d');
+      const grad = ctx.createRadialGradient(512, 512, 120, 512, 512, 512);
+      grad.addColorStop(0, '#1c4d34');
+      grad.addColorStop(0.5, '#123825');
+      grad.addColorStop(0.85, '#0b2217');
+      grad.addColorStop(1, '#05110a');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 1024, 1024);
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.035)';
+      for (let i = 0; i < 4000; i++) {
+        ctx.fillRect(Math.random() * 1024, Math.random() * 1024, 1.5, 1.5);
+      }
+      const tex = new THREE.CanvasTexture(fc);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      return tex;
+    }
+
+    const tableGeo = new THREE.PlaneGeometry(16, 10.5);
+    const tableMat = new THREE.MeshStandardMaterial({
+      map: createFeltMat(),
+      roughness: 0.88,
+      metalness: 0.02,
+    });
+    const tableMesh = new THREE.Mesh(tableGeo, tableMat);
+    tableMesh.rotation.x = -Math.PI / 2;
+    tableMesh.receiveShadow = true;
+    scene.add(tableMesh);
+
+    // Beveled Rail
+    const railMat = new THREE.MeshStandardMaterial({ color: 0x07110c, roughness: 0.35, metalness: 0.2 });
+    const railGeo = new THREE.BoxGeometry(16.4, 0.3, 10.9);
+    const railMesh = new THREE.Mesh(railGeo, railMat);
+    railMesh.position.set(0, -0.16, 0);
+    railMesh.receiveShadow = true;
+    scene.add(railMesh);
+
+    // =========================================================================
+    // PROCEDURAL PBR NORMAL MAP GENERATOR (SPHERICAL CONCAVE DRILLED PIPS)
+    // =========================================================================
+    function createDominoNormalMap(topPips, bottomPips) {
+      const c = document.createElement('canvas');
+      c.width = 512;
+      c.height = 1024;
+      const ctx = c.getContext('2d');
+
+      const imgData = ctx.createImageData(512, 1024);
+      const data = imgData.data;
+
+      // 1. Fill base normal vector: Straight Up [128, 128, 255]
+      for (let i = 0; i < data.length; i += 4) {
+        data[i] = 128;     // Nx = 0
+        data[i + 1] = 128; // Ny = 0
+        data[i + 2] = 255; // Nz = 1
+        data[i + 3] = 255; // Alpha
+      }
+
+      // Helper: Carve spherical concave depression
+      function carveSphericalPip(cx, cy, radius = 38) {
+        const rSq = radius * radius;
+        for (let dy = -radius; dy <= radius; dy++) {
+          for (let dx = -radius; dx <= radius; dx++) {
+            const distSq = dx * dx + dy * dy;
+            if (distSq <= rSq) {
+              const x = cx + dx;
+              const y = cy + dy;
+              if (x >= 0 && x < 512 && y >= 0 && y < 1024) {
+                const idx = (y * 512 + x) * 4;
+                const d = Math.sqrt(distSq);
+                const normD = d / radius;
+                // Concave normal: slopes inwards toward center
+                const nx = (dx / radius) * 0.75;
+                const ny = (dy / radius) * 0.75;
+                const nz = Math.sqrt(Math.max(0, 1 - nx * nx - ny * ny));
+
+                data[idx] = Math.round((nx * 0.5 + 0.5) * 255);
+                data[idx + 1] = Math.round((ny * 0.5 + 0.5) * 255);
+                data[idx + 2] = Math.round((nz * 0.5 + 0.5) * 255);
+              }
+            }
+          }
+        }
+      }
+
+      // Helper: Carve horizontal V-groove for center divider line
+      for (let y = 508; y <= 516; y++) {
+        const ny = y < 512 ? -0.7 : 0.7; // slope up or down
+        const nz = 0.71;
+        for (let x = 20; x < 492; x++) {
+          const idx = (y * 512 + x) * 4;
+          data[idx] = 128;
+          data[idx + 1] = Math.round((ny * 0.5 + 0.5) * 255);
+          data[idx + 2] = Math.round((nz * 0.5 + 0.5) * 255);
+        }
+      }
+
+      function carvePipsHalf(count, cy) {
+        const left = 135, mid = 256, right = 377;
+        const topY = cy - 150, midY = cy, botY = cy + 150;
+        if (count === 1) carveSphericalPip(mid, midY);
+        else if (count === 2) { carveSphericalPip(left, topY); carveSphericalPip(right, botY); }
+        else if (count === 3) { carveSphericalPip(left, topY); carveSphericalPip(mid, midY); carveSphericalPip(right, botY); }
+        else if (count === 4) { carveSphericalPip(left, topY); carveSphericalPip(right, topY); carveSphericalPip(left, botY); carveSphericalPip(right, botY); }
+        else if (count === 5) { carveSphericalPip(left, topY); carveSphericalPip(right, topY); carveSphericalPip(mid, midY); carveSphericalPip(left, botY); carveSphericalPip(right, botY); }
+        else if (count === 6) {
+          carveSphericalPip(left, topY); carveSphericalPip(right, topY);
+          carveSphericalPip(left, midY); carveSphericalPip(right, midY);
+          carveSphericalPip(left, botY); carveSphericalPip(right, botY);
+        }
+      }
+
+      carvePipsHalf(topPips, 256);
+      carvePipsHalf(bottomPips, 768);
+
+      ctx.putImageData(imgData, 0, 0);
+      const tex = new THREE.CanvasTexture(c);
+      tex.anisotropy = 8;
+      return tex;
+    }
+
+    // DIFFUSE ALBEDO MAP
+    function createTileAlbedoMap(topPips, bottomPips) {
+      const c = document.createElement('canvas');
+      c.width = 512;
+      c.height = 1024;
+      const ctx = c.getContext('2d');
+
+      // Creamy Ivory Subsurface Gradient
+      const grad = ctx.createLinearGradient(0, 0, 512, 1024);
+      grad.addColorStop(0, '#fefbf5');
+      grad.addColorStop(0.25, '#f7f1e3');
+      grad.addColorStop(0.7, '#ede1c9');
+      grad.addColorStop(1, '#ddcbab');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 512, 1024);
+
+      // Micro ivory grain
+      ctx.fillStyle = 'rgba(150, 125, 90, 0.04)';
+      for (let i = 0; i < 2000; i++) {
+        ctx.fillRect(Math.random() * 512, Math.random() * 1024, 2, 2);
+      }
+
+      // Divider line
+      ctx.strokeStyle = '#6e5a3c';
+      ctx.lineWidth = 10;
+      ctx.beginPath();
+      ctx.moveTo(25, 512);
+      ctx.lineTo(487, 512);
+      ctx.stroke();
+
+      // Pips (Matte Black with soft ambient occlusion rim)
+      function drawPip(x, y) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(x, y, 38, 0, Math.PI * 2);
+        ctx.fillStyle = '#0a0a0a';
+        ctx.fill();
+        ctx.restore();
+      }
+
+      function drawPipsHalf(count, cy) {
+        const left = 135, mid = 256, right = 377;
+        const topY = cy - 150, midY = cy, botY = cy + 150;
+        if (count === 1) drawPip(mid, midY);
+        else if (count === 2) { drawPip(left, topY); drawPip(right, botY); }
+        else if (count === 3) { drawPip(left, topY); drawPip(mid, midY); drawPip(right, botY); }
+        else if (count === 4) { drawPip(left, topY); drawPip(right, topY); drawPip(left, botY); drawPip(right, botY); }
+        else if (count === 5) { drawPip(left, topY); drawPip(right, topY); drawPip(mid, midY); drawPip(left, botY); drawPip(right, botY); }
+        else if (count === 6) {
+          drawPip(left, topY); drawPip(right, topY);
+          drawPip(left, midY); drawPip(right, midY);
+          drawPip(left, botY); drawPip(right, botY);
+        }
+      }
+
+      drawPipsHalf(topPips, 256);
+      drawPipsHalf(bottomPips, 768);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.anisotropy = 8;
+      return tex;
+    }
+
+    // =========================================================================
+    // ROUNDED 3D GEOMETRY BUILDER
+    // =========================================================================
+    function createRoundedBoxGeometry(width, height, depth, radius, smoothness) {
+      const shape = new THREE.Shape();
+      const eps = 0.00001;
+      const radiusActual = radius - eps;
+      const w = width / 2 - radiusActual;
+      const h = height / 2 - radiusActual;
+
+      shape.absarc(w, h, radiusActual, 0, Math.PI / 2, false);
+      shape.absarc(-w, h, radiusActual, Math.PI / 2, Math.PI, false);
+      shape.absarc(-w, -h, radiusActual, Math.PI, Math.PI * 3 / 2, false);
+      shape.absarc(w, -h, radiusActual, Math.PI * 3 / 2, Math.PI * 2, false);
+
+      const geometry = new THREE.ExtrudeGeometry(shape, {
+        depth: depth - radius * 2,
+        bevelEnabled: true,
+        bevelSegments: smoothness * 2,
+        steps: 1,
+        bevelSize: radiusActual,
+        bevelThickness: radius,
+        curveSegments: smoothness * 2
+      });
+
+      geometry.center();
+      return geometry;
+    }
+
+    // Standard Physical Dimensions (2:1 Ratio)
+    const W = 1.0;
+    const L = 2.0 * W;
+    const T = 0.30;
+    const SEAM_GAP = 0.02;
+
+    const tileBevelGeo = createRoundedBoxGeometry(W, L, T, 0.06, 3);
+    const tileFacePlaneGeo = new THREE.PlaneGeometry(W - 0.04, L - 0.04);
+
+    // Warm Ivory Physical Material (with Clearcoat and SSS Tint)
+    const ivoryMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xfdfaf2,
+      roughness: 0.20,
+      metalness: 0.01,
+      clearcoat: 0.5,
+      clearcoatRoughness: 0.12,
+      envMapIntensity: 1.2,
+    });
+
+    // 18k Metallic Brass Rivet Material
+    const brassRivetMat = new THREE.MeshStandardMaterial({
+      color: 0xffd23f,
+      roughness: 0.16,
+      metalness: 0.95,
+      envMapIntensity: 1.8,
+    });
+    const rivetGeo = new THREE.SphereGeometry(0.045, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+
+    // BUILD PBR DOMINO WITH NORMAL MAP & CRISP TEXTURES
+    function build3DPBRDomino(topPips, bottomPips) {
+      const group = new THREE.Group();
+
+      // 1. Beveled Ivory 3D Body
+      const bodyMesh = new THREE.Mesh(tileBevelGeo, ivoryMaterial);
+      bodyMesh.castShadow = true;
+      bodyMesh.receiveShadow = true;
+      group.add(bodyMesh);
+
+      // 2. Face with Normal Map (physical concave pips)
+      const albedoTex = createTileAlbedoMap(topPips, bottomPips);
+      const normalTex = createDominoNormalMap(topPips, bottomPips);
+
+      const faceMat = new THREE.MeshStandardMaterial({
+        map: albedoTex,
+        normalMap: normalTex,
+        normalScale: new THREE.Vector2(0.85, 0.85),
+        roughness: 0.22,
+        metalness: 0.02,
+        envMapIntensity: 1.0,
+      });
+      const faceMesh = new THREE.Mesh(tileFacePlaneGeo, faceMat);
+      faceMesh.position.z = T / 2 + 0.002;
+      group.add(faceMesh);
+
+      // 3. Metallic 3D Brass Spinner Rivet (Glints under spotlight)
+      const rivetMesh = new THREE.Mesh(rivetGeo, brassRivetMat);
+      rivetMesh.rotation.x = Math.PI / 2;
+      rivetMesh.position.set(0, 0, T / 2 + 0.003);
+      group.add(rivetMesh);
+
+      group.userData = { topPips, bottomPips, isTile: true };
+      return group;
+    }
+
+    // =========================================================================
+    // 1. PLAYED DOMINOES CHAIN (PHYSICALLY CORRECT GRID, ZERO OVERLAP)
+    // =========================================================================
+    const playedChainGroup = new THREE.Group();
+
+    function placeTile(topPips, bottomPips, cx, cz, isHorizontal = false) {
+      const tile = build3DPBRDomino(topPips, bottomPips);
+      tile.position.set(cx, T / 2, cz);
+      if (isHorizontal) {
+        tile.rotation.x = -Math.PI / 2;
+        tile.rotation.z = Math.PI / 2;
+      } else {
+        tile.rotation.x = -Math.PI / 2;
+        tile.rotation.z = 0;
+      }
+      playedChainGroup.add(tile);
+      return tile;
+    }
+
+    // Main Spine (South Row, Z = 0.5)
+    placeTile(4, 4, 0.0, 0.5, false);
+    placeTile(4, 1, -(0.5 + W + SEAM_GAP), 0.5, true);
+    placeTile(1, 0, -(0.5 + W + L + SEAM_GAP * 2), 0.5, true);
+    placeTile(4, 2, +(0.5 + W + SEAM_GAP), 0.5, true);
+    placeTile(2, 2, +(2.5 + W/2 + SEAM_GAP), 0.5, false);
+
+    // North Branch (from [2|2] at X = 3.0)
+    placeTile(2, 5, +(2.5 + W/2 + SEAM_GAP), -0.5 - W - SEAM_GAP, false);
+
+    // Top Row (West from North Branch at Z = -2.5)
+    placeTile(5, 6, +(0.5 + W + SEAM_GAP), -2.5, true);
+    placeTile(6, 6, 0.0, -2.5, false);
+    placeTile(6, 3, -(0.5 + W + SEAM_GAP), -2.5, true);
+
+    scene.add(playedChainGroup);
+
+    // =========================================================================
+    // 2. TOP PARTNER RACK (7 TILES)
+    // =========================================================================
+    const topRackGroup = new THREE.Group();
+    const compactW = 0.82, compactH = 1.30, compactD = 0.22;
+    const compactGeo = createRoundedBoxGeometry(compactW, compactH, compactD, 0.05, 2);
+
+    const topShelfGeo = new THREE.BoxGeometry(6.4, 0.25, 0.6);
+    const topShelf = new THREE.Mesh(topShelfGeo, railMat);
+    topShelf.position.set(0, 0.1, -4.6);
+    topShelf.receiveShadow = true;
+    topRackGroup.add(topShelf);
+
+    for (let i = 0; i < 7; i++) {
+      const tile = new THREE.Mesh(compactGeo, ivoryMaterial);
+      tile.position.set((i - 3) * 0.88, compactH / 2 + 0.05, -4.6);
+      tile.rotation.x = -0.16;
+      tile.castShadow = true;
+      tile.receiveShadow = true;
+      topRackGroup.add(tile);
+    }
+    scene.add(topRackGroup);
+
+    // =========================================================================
+    // 3. LEFT & RIGHT OPPONENT RACKS
+    // =========================================================================
+    const leftRackGroup = new THREE.Group();
+    const leftShelfGeo = new THREE.BoxGeometry(0.5, 0.25, 5.8);
+    const leftShelf = new THREE.Mesh(leftShelfGeo, railMat);
+    leftShelf.position.set(-6.1, 0.1, -0.4);
+    leftShelf.receiveShadow = true;
+    leftRackGroup.add(leftShelf);
+
+    for (let i = 0; i < 7; i++) {
+      const tile = new THREE.Mesh(compactGeo, ivoryMaterial);
+      tile.position.set(-6.1, compactH / 2 + 0.05, (i - 3) * 0.76 - 0.4);
+      tile.rotation.y = Math.PI / 2 + 0.25;
+      tile.rotation.z = -0.15;
+      tile.castShadow = true;
+      tile.receiveShadow = true;
+      leftRackGroup.add(tile);
+    }
+    scene.add(leftRackGroup);
+
+    const rightRackGroup = new THREE.Group();
+    const rightShelf = new THREE.Mesh(leftShelfGeo, railMat);
+    rightShelf.position.set(6.1, 0.1, -0.4);
+    rightShelf.receiveShadow = true;
+    rightRackGroup.add(rightShelf);
+
+    for (let i = 0; i < 7; i++) {
+      const tile = new THREE.Mesh(compactGeo, ivoryMaterial);
+      tile.position.set(6.1, compactH / 2 + 0.05, (i - 3) * 0.76 - 0.4);
+      tile.rotation.y = -Math.PI / 2 - 0.25;
+      tile.rotation.z = 0.15;
+      tile.castShadow = true;
+      tile.receiveShadow = true;
+      rightRackGroup.add(tile);
+    }
+    scene.add(rightRackGroup);
+
+    // =========================================================================
+    // 4. PLAYER'S HAND & PHYSICAL TRAY (BOTTOM 7 TILES) - FULLY INTERACTIVE
+    // =========================================================================
+    const playerHandGroup = new THREE.Group();
+    const handTiles = [
+      [1, 4], [1, 5], [2, 5], [3, 5], [4, 5], [5, 5], [0, 0]
+    ];
+    const playerTileMeshes = [];
+
+    const trayGeo = createRoundedBoxGeometry(8.4, 0.40, 1.1, 0.14, 3);
+    const trayMat = new THREE.MeshStandardMaterial({ color: 0x09140e, roughness: 0.35, metalness: 0.25 });
+    const playerTrayMesh = new THREE.Mesh(trayGeo, trayMat);
+    playerTrayMesh.position.set(0, 0.1, 5.0);
+    playerTrayMesh.receiveShadow = true;
+    playerTrayMesh.castShadow = true;
+    playerHandGroup.add(playerTrayMesh);
+
+    const handTileScale = 0.80;
+    handTiles.forEach(([t, b], idx) => {
+      const domino = build3DPBRDomino(t, b);
+      domino.scale.set(handTileScale, handTileScale, handTileScale);
+      const posX = (idx - 3) * 1.08;
+      domino.position.set(posX, (L * handTileScale) / 2 + 0.12, 5.0);
+      domino.rotation.x = -0.34;
+      domino.userData.origY = domino.position.y;
+      domino.userData.origZ = domino.position.z;
+      domino.userData.isPlayerHand = true;
+      domino.userData.index = idx;
+
+      playerHandGroup.add(domino);
+      playerTileMeshes.push(domino);
+    });
+
+    scene.add(playerHandGroup);
+
+    // =========================================================================
+    // RAYCASTER FOR INTERACTIVE HOVER & TILE SELECTION
+    // =========================================================================
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2(-100, -100);
+    let hoveredTile = null;
+    let selectedTile = null;
+
+    window.addEventListener('mousemove', (e) => {
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    });
+
+    window.addEventListener('click', (e) => {
+      if (hoveredTile) {
+        if (selectedTile === hoveredTile) {
+          selectedTile = null;
+        } else {
+          selectedTile = hoveredTile;
+        }
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // Emerald / Amber Matrix Toggle
+    const btnEmerald = document.getElementById('btn-emerald');
+    const btnAmber = document.getElementById('btn-amber');
+    if (btnEmerald && btnAmber) {
+      btnEmerald.addEventListener('click', () => {
+        btnEmerald.className = "py-1.5 rounded-lg bg-emerald-950/70 border border-emerald-500/40 text-emerald-400 text-xs font-bold transition";
+        btnAmber.className = "py-1.5 rounded-lg bg-transparent border border-white/10 text-zinc-400 text-xs font-bold transition hover:text-white";
+      });
+      btnAmber.addEventListener('click', () => {
+        btnAmber.className = "py-1.5 rounded-lg bg-amber-950/70 border border-amber-500/40 text-amber-400 text-xs font-bold transition";
+        btnEmerald.className = "py-1.5 rounded-lg bg-transparent border border-white/10 text-zinc-400 text-xs font-bold transition hover:text-white";
+      });
+    }
+
+    // RENDER LOOP
+    function animate() {
+      requestAnimationFrame(animate);
+
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(playerHandGroup.children, true);
+
+      let found = null;
+      if (intersects.length > 0) {
+        let obj = intersects[0].object;
+        while (obj.parent && obj.parent !== playerHandGroup) {
+          obj = obj.parent;
+        }
+        if (obj.userData.isPlayerHand) {
+          found = obj;
+        }
+      }
+      hoveredTile = found;
+
+      playerTileMeshes.forEach((mesh) => {
+        const isHover = (mesh === hoveredTile);
+        const isSelect = (mesh === selectedTile);
+        const targetY = mesh.userData.origY + (isSelect ? 0.45 : isHover ? 0.28 : 0);
+        const targetZ = mesh.userData.origZ - (isSelect ? 0.20 : isHover ? 0.12 : 0);
+
+        mesh.position.y += (targetY - mesh.position.y) * 0.15;
+        mesh.position.z += (targetZ - mesh.position.z) * 0.15;
+      });
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+  </script>
+</body>
+</html>
