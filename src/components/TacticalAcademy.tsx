@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
-import { SCENARIOS } from '../data/scenarios';
+import { getScenarios } from '../i18n/scenarios.en';
+import { useLanguage } from '../i18n/LanguageContext';
 import { DominoTile } from './DominoTile';
 import { Tile, ScenarioBoardTile } from '../types/domino';
 import { CheckCircle2, XCircle, ArrowRight, ArrowLeft, ChevronLeft, ChevronRight, RotateCcw, Award, Lightbulb, BookOpen, AlertTriangle, Eye, Hash } from 'lucide-react';
@@ -72,6 +73,14 @@ const mirrorArm = (arm: Placed[]): Placed[] =>
   });
 
 export const TacticalAcademy: React.FC = () => {
+  const { lang, tr } = useLanguage();
+  const scenarios = getScenarios(lang);
+  const playerBadges: Record<number, { tag: string; name: string; color: string }> = {
+    0: { tag: tr('TÚ', 'YOU'), name: tr('Tú', 'You'), color: PLAYER_BADGES[0].color },
+    1: { tag: tr('RD', 'RR'), name: tr('Rival Derecha', 'Right Rival'), color: PLAYER_BADGES[1].color },
+    2: { tag: tr('COM', 'PTR'), name: tr('Compañero', 'Partner'), color: PLAYER_BADGES[2].color },
+    3: { tag: tr('RI', 'LR'), name: tr('Rival Izquierda', 'Left Rival'), color: PLAYER_BADGES[3].color },
+  };
   const [currentIdx, setCurrentIdx] = useState(0);
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
   const [selectedTile, setSelectedTile] = useState<Tile | null>(null);
@@ -86,7 +95,18 @@ export const TacticalAcademy: React.FC = () => {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  const scenario = SCENARIOS[currentIdx];
+  const scenario = scenarios[currentIdx];
+  const difficultyLabel = {
+    Principiante: tr('Principiante', 'Beginner'),
+    Intermedio: tr('Intermedio', 'Intermediate'),
+    Maestro: tr('Maestro', 'Master'),
+  }[scenario.difficulty];
+  const salidaByLabel = {
+    Tú: tr('Tú', 'You'),
+    Compañero: tr('Compañero', 'Partner'),
+    'Rival Derecha': tr('Rival Derecha', 'Right Rival'),
+    'Rival Izquierda': tr('Rival Izquierda', 'Left Rival'),
+  }[scenario.context.salidaBy];
   const selectedOption = scenario.options.find((opt) => opt.id === selectedOptionId);
 
   const handleSelectOption = (optId: string, tile: Tile) => {
@@ -107,7 +127,7 @@ export const TacticalAcademy: React.FC = () => {
   };
 
   const handleNext = () => {
-    if (currentIdx < SCENARIOS.length - 1) {
+    if (currentIdx < scenarios.length - 1) {
       setCurrentIdx((prev) => prev + 1);
       setSelectedOptionId(null);
       setSelectedTile(null);
@@ -146,7 +166,7 @@ export const TacticalAcademy: React.FC = () => {
                   : 'bg-purple-950 text-purple-400 border border-purple-800/60'
               }`}
             >
-              {scenario.difficulty}
+              {difficultyLabel}
             </span>
           </h2>
         </div>
@@ -159,34 +179,34 @@ export const TacticalAcademy: React.FC = () => {
               onClick={handlePrev}
               disabled={currentIdx === 0}
               className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed border border-slate-700 transition flex items-center justify-center active:scale-95"
-              title="Escenario Anterior"
-              aria-label="Anterior"
+              title={tr('Escenario Anterior', 'Previous Scenario')}
+              aria-label={tr('Anterior', 'Previous')}
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <span className="text-xs font-mono font-bold text-slate-300 px-2">
-              {currentIdx + 1}/{SCENARIOS.length}
+              {currentIdx + 1}/{scenarios.length}
             </span>
             <button
               type="button"
               onClick={handleNext}
-              disabled={currentIdx === SCENARIOS.length - 1}
+              disabled={currentIdx === scenarios.length - 1}
               className="w-8 h-8 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 disabled:opacity-30 disabled:cursor-not-allowed transition flex items-center justify-center shadow active:scale-95"
-              title="Siguiente Escenario"
-              aria-label="Siguiente"
+              title={tr('Siguiente Escenario', 'Next Scenario')}
+              aria-label={tr('Siguiente', 'Next')}
             >
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
 
           <div className="text-left sm:text-right order-1 sm:order-2">
-            <div className="text-[11px] sm:text-xs text-slate-400">Progreso</div>
+            <div className="text-[11px] sm:text-xs text-slate-400">{tr('Progreso', 'Progress')}</div>
             <div className="text-xs sm:text-sm font-bold text-amber-400">
-              {solvedScenarios.length}/{SCENARIOS.length} resueltos
+              {solvedScenarios.length}/{scenarios.length} {tr('resueltos', 'solved')}
             </div>
           </div>
           <div className="flex flex-wrap gap-1.5 order-3">
-            {SCENARIOS.map((s, idx) => (
+            {scenarios.map((s, idx) => (
               <button
                 key={s.id}
                 onClick={() => {
@@ -217,16 +237,16 @@ export const TacticalAcademy: React.FC = () => {
             <div className="flex flex-wrap items-center justify-between gap-1.5 sm:gap-2 text-[11px] sm:text-xs text-slate-300 font-mono px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-950/80 border border-emerald-500/20 backdrop-blur-sm">
               <span className="flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse" />
-                Punta Izq: <b className="text-amber-400 font-bold">{scenario.context.boardEnds[0] === 0 && scenario.context.boardEnds[1] === 0 ? '—' : scenario.context.boardEnds[0]}</b>
+                {tr('Punta Izq:', 'Left End:')} <b className="text-amber-400 font-bold">{scenario.context.boardEnds[0] === 0 && scenario.context.boardEnds[1] === 0 ? '—' : scenario.context.boardEnds[0]}</b>
               </span>
               <span>
-                Salidor: <b className="text-amber-300 font-bold">{scenario.context.salidaBy}</b>
+                {tr('Salidor:', 'Lead:')} <b className="text-amber-300 font-bold">{salidaByLabel}</b>
                 {scenario.context.boardTiles && scenario.context.boardTiles.length > 0 && (
-                  <span className="text-slate-400 ml-1">• Fichas: <b className="text-white">{scenario.context.boardTiles.length}</b></span>
+                  <span className="text-slate-400 ml-1">• {tr('Fichas:', 'Tiles:')} <b className="text-white">{scenario.context.boardTiles.length}</b></span>
                 )}
               </span>
               <span className="flex items-center gap-1">
-                Punta Der: <b className="text-amber-400 font-bold">{scenario.context.boardEnds[0] === 0 && scenario.context.boardEnds[1] === 0 ? '—' : scenario.context.boardEnds[1]}</b>
+                {tr('Punta Der:', 'Right End:')} <b className="text-amber-400 font-bold">{scenario.context.boardEnds[0] === 0 && scenario.context.boardEnds[1] === 0 ? '—' : scenario.context.boardEnds[1]}</b>
                 <span className="w-2 h-2 rounded-full bg-amber-400 inline-block animate-pulse" />
               </span>
             </div>
@@ -240,10 +260,10 @@ export const TacticalAcademy: React.FC = () => {
                   className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg flex items-center gap-1 border transition ${
                     showPlayerBadges ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50' : 'bg-slate-900/80 text-slate-400 border-slate-800'
                   }`}
-                  title="Mostrar autor en cada ficha"
+                  title={tr('Mostrar autor en cada ficha', 'Show player badge on each tile')}
                 >
                   <Eye className="w-3 h-3" />
-                  {showPlayerBadges ? 'Autor: ON' : 'Autor: OFF'}
+                  {tr('Autor:', 'Player:')} {showPlayerBadges ? 'ON' : 'OFF'}
                 </button>
                 <button
                   type="button"
@@ -251,10 +271,10 @@ export const TacticalAcademy: React.FC = () => {
                   className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg flex items-center gap-1 border transition ${
                     showPlayOrder ? 'bg-amber-500/20 text-amber-300 border-amber-500/50' : 'bg-slate-900/80 text-slate-400 border-slate-800'
                   }`}
-                  title="Mostrar orden de jugada (#1, #2...)"
+                  title={tr('Mostrar orden de jugada (#1, #2...)', 'Show play order (#1, #2...)')}
                 >
                   <Hash className="w-3 h-3" />
-                  {showPlayOrder ? 'Orden: ON' : 'Orden: OFF'}
+                  {tr('Orden:', 'Order:')} {showPlayOrder ? 'ON' : 'OFF'}
                 </button>
               </div>
 
@@ -263,10 +283,10 @@ export const TacticalAcademy: React.FC = () => {
                   {showPlayerBadges &&
                     [0, 2, 1, 3].map((pIdx) => (
                       <span key={pIdx} className="flex items-center gap-1">
-                        <span className={`px-1 py-0.2 rounded font-extrabold text-[8px] ${PLAYER_BADGES[pIdx].color}`}>
-                          {PLAYER_BADGES[pIdx].tag}
+                        <span className={`px-1 py-0.2 rounded font-extrabold text-[8px] ${playerBadges[pIdx].color}`}>
+                          {playerBadges[pIdx].tag}
                         </span>
-                        <span>{PLAYER_BADGES[pIdx].name}</span>
+                        <span>{playerBadges[pIdx].name}</span>
                       </span>
                     ))}
                   {showPlayOrder && (
@@ -274,7 +294,7 @@ export const TacticalAcademy: React.FC = () => {
                       <span className="px-1 py-0.2 rounded-full font-mono font-bold text-[8px] bg-slate-950 border border-amber-400/80 text-amber-300">
                         #1
                       </span>
-                      <span>Salida</span>
+                      <span>{tr('Salida', 'Lead')}</span>
                     </span>
                   )}
                 </div>
@@ -286,10 +306,10 @@ export const TacticalAcademy: React.FC = () => {
               {(!scenario.context.boardTiles || scenario.context.boardTiles.length === 0) ? (
                 <div className="text-center py-6 px-4 bg-slate-950/60 rounded-xl border border-emerald-500/20 space-y-1.5 backdrop-blur-sm">
                   <div className="text-sm font-bold text-emerald-300">
-                    Mesa de Juego Limpia (Inicio de Partida)
+                    {tr('Mesa de Juego Limpia (Inicio de Partida)', 'Clean Felt Table (Opening Lead)')}
                   </div>
                   <p className="text-xs text-slate-300">
-                    No hay fichas jugadas aún en la mesa. Tienes la salida de la mano.
+                    {tr('No hay fichas jugadas aún en la mesa. Tienes la salida de la mano.', 'No tiles have been played yet. You hold the opening lead.')}
                   </p>
                 </div>
               ) : (
@@ -347,28 +367,47 @@ export const TacticalAcademy: React.FC = () => {
                             transform: scale < 1 ? `scale(${scale})` : undefined,
                           }}
                         >
-                          {all.map((p, i) => {
-                            const badgeInfo = PLAYER_BADGES[p.playedBy] || PLAYER_BADGES[0];
-                            return (
+                          {/* Layer 1: Independent Contact Shadows */}
+                          <div data-testid="board-shadows-layer" className="absolute inset-0 pointer-events-none z-0">
+                            {all.map((p, i) => (
                               <div
                                 key={i}
-                                className="absolute"
-                                style={{ left: p.left - minX + 8, top: p.top - minY + 8 }}
-                              >
-                                <DominoTile
-                                  top={p.tile[0]}
-                                  bottom={p.tile[1]}
-                                  size="sm"
-                                  orientation={p.vertical ? 'vertical' : 'horizontal'}
-                                  className={i === 0 ? 'ring-2 ring-amber-400/80' : ''}
-                                  badge={showPlayerBadges ? badgeInfo.tag : undefined}
-                                  badgeColor={badgeInfo.color}
-                                  orderBadge={showPlayOrder ? p.playOrder : undefined}
-                                  disabled
-                                />
-                              </div>
-                            );
-                          })}
+                                className="absolute rounded-lg bg-black/70 blur-[6px] translate-y-[4px]"
+                                style={{
+                                  left: p.left - minX + 8,
+                                  top: p.top - minY + 8,
+                                  width: p.vertical ? TILE_SHORT : TILE_LONG,
+                                  height: p.vertical ? TILE_LONG : TILE_SHORT,
+                                }}
+                              />
+                            ))}
+                          </div>
+                          {/* Layer 2: Board Tiles */}
+                          <div data-testid="board-tiles-layer" className="relative z-10 w-full h-full">
+                            {all.map((p, i) => {
+                              const badgeInfo = playerBadges[p.playedBy] || playerBadges[0];
+                              return (
+                                <div
+                                  key={i}
+                                  className="absolute"
+                                  style={{ left: p.left - minX + 8, top: p.top - minY + 8 }}
+                                >
+                                  <DominoTile
+                                    top={p.tile[0]}
+                                    bottom={p.tile[1]}
+                                    size="sm"
+                                    orientation={p.vertical ? 'vertical' : 'horizontal'}
+                                    className={i === 0 ? 'ring-2 ring-amber-400/80' : ''}
+                                    badge={showPlayerBadges ? badgeInfo.tag : undefined}
+                                    badgeColor={badgeInfo.color}
+                                    orderBadge={showPlayOrder ? p.playOrder : undefined}
+                                    boardMode
+                                    disabled
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -384,7 +423,13 @@ export const TacticalAcademy: React.FC = () => {
                       className="text-[11px] sm:text-xs bg-red-950/80 text-red-300 border border-red-700/60 px-2 sm:px-2.5 py-1 rounded-md flex items-center gap-1.5 shadow"
                     >
                       <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0" />
-                      <span>{p.player} <b>PASÓ</b> al número {p.suit}</span>
+                      <span>
+                        {lang === 'en' ? (
+                          <>{p.player} <b>PASSED</b> on suit {p.suit}</>
+                        ) : (
+                          <>{p.player} <b>PASÓ</b> al número {p.suit}</>
+                        )}
+                      </span>
                     </span>
                   ))}
                 </div>
@@ -396,10 +441,10 @@ export const TacticalAcademy: React.FC = () => {
               <div className="flex items-center justify-between gap-2 mb-2">
                 <span className="text-[11px] sm:text-xs uppercase font-bold tracking-wider text-slate-300 flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
-                  <span>Tus Fichas en Mano</span>
+                  <span>{tr('Tus Fichas en Mano', 'Your Hand')}</span>
                 </span>
                 <span className="text-[11px] sm:text-xs text-slate-400 font-mono shrink-0">
-                  {scenario.context.myHand.length} fichas
+                  {scenario.context.myHand.length} {tr('fichas', 'tiles')}
                 </span>
               </div>
 
@@ -439,7 +484,7 @@ export const TacticalAcademy: React.FC = () => {
           <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-2">
               <BookOpen className="w-4 h-4 text-amber-400" />
-              Lectura y Observaciones de la Mesa
+              {tr('Lectura y Observaciones de la Mesa', 'Table Reading & Observations')}
             </h4>
             <ul className="space-y-1.5 text-xs text-slate-300">
               {scenario.context.notes.map((note, i) => (
@@ -459,7 +504,7 @@ export const TacticalAcademy: React.FC = () => {
             <div>
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">
-                  Situación en Mesa
+                  {tr('Situación en Mesa', 'Table Situation')}
                 </span>
                 <div className="flex items-center gap-1.5">
                   <button
@@ -467,19 +512,19 @@ export const TacticalAcademy: React.FC = () => {
                     onClick={handlePrev}
                     disabled={currentIdx === 0}
                     className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed border border-slate-700 transition flex items-center gap-1"
-                    title="Escenario Anterior"
+                    title={tr('Escenario Anterior', 'Previous Scenario')}
                   >
                     <ArrowLeft className="w-3.5 h-3.5" />
-                    Anterior
+                    {tr('Anterior', 'Previous')}
                   </button>
                   <button
                     type="button"
                     onClick={handleNext}
-                    disabled={currentIdx === SCENARIOS.length - 1}
+                    disabled={currentIdx === scenarios.length - 1}
                     className="px-2.5 py-1 text-xs font-bold rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 hover:from-amber-400 hover:to-amber-500 disabled:opacity-30 disabled:cursor-not-allowed transition flex items-center gap-1 shadow"
-                    title="Siguiente Escenario"
+                    title={tr('Siguiente Escenario', 'Next Scenario')}
                   >
-                    Siguiente
+                    {tr('Siguiente', 'Next')}
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -491,7 +536,7 @@ export const TacticalAcademy: React.FC = () => {
 
             <div className="p-3.5 rounded-xl bg-slate-950/70 border border-amber-500/30">
               <span className="text-xs font-bold text-amber-400 uppercase tracking-wider block mb-1">
-                Pregunta del Maestro:
+                {tr('Pregunta del Maestro:', "Master's Question:")}
               </span>
               <p className="text-sm font-semibold text-white">
                 {scenario.question}
@@ -501,7 +546,7 @@ export const TacticalAcademy: React.FC = () => {
             {/* Answer Options */}
             <div className="space-y-2.5">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
-                Selecciona tu jugada táctica:
+                {tr('Selecciona tu jugada táctica:', 'Select your tactical play:')}
               </span>
               {scenario.options.map((opt) => {
                 const isSelected = selectedOptionId === opt.id;
@@ -533,10 +578,12 @@ export const TacticalAcademy: React.FC = () => {
                       />
                       <div>
                         <div className="text-xs font-bold text-slate-300">
-                          Jugar [{opt.tile[0]}:{opt.tile[1]}]
+                          {tr('Jugar', 'Play')} [{opt.tile[0]}:{opt.tile[1]}]
                           {opt.targetEnd !== undefined && (
                             <span className="text-amber-400 ml-1.5 font-bold">
-                              por la {opt.targetEnd === scenario.context.boardEnds[0] ? 'Punta Izquierda' : 'Punta Derecha'} ({opt.targetEnd})
+                              {lang === 'en'
+                                ? `on ${opt.targetEnd === scenario.context.boardEnds[0] ? 'Left End' : 'Right End'} (${opt.targetEnd})`
+                                : `por la ${opt.targetEnd === scenario.context.boardEnds[0] ? 'Punta Izquierda' : 'Punta Derecha'} (${opt.targetEnd})`}
                             </span>
                           )}
                         </div>
@@ -576,7 +623,7 @@ export const TacticalAcademy: React.FC = () => {
                     <AlertTriangle className="w-5 h-5 text-rose-400" />
                   )}
                   <h4 className="font-bold text-sm">
-                    {selectedOption.isCorrect ? '¡Decisión Correcta!' : 'Jugada Desacertada'}
+                    {selectedOption.isCorrect ? tr('¡Decisión Correcta!', 'Correct Decision!') : tr('Jugada Desacertada', 'Suboptimal Play')}
                   </h4>
                 </div>
 
@@ -600,7 +647,7 @@ export const TacticalAcademy: React.FC = () => {
                   className="px-3.5 py-1.5 text-xs font-semibold rounded-lg text-amber-400 bg-amber-400/10 hover:bg-amber-400/20 border border-amber-400/30 flex items-center gap-1.5 transition"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                  Reintentar esta jugada
+                  {tr('Reintentar esta jugada', 'Retry this play')}
                 </button>
               </div>
             )}
