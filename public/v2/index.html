@@ -1,0 +1,1669 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dominó Maestro 2.0 - Torneo Dominicano de Alto Nivel</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: #020704;
+      color: #ffffff;
+      user-select: none;
+    }
+
+    /* =========================================================================
+       CASINO TOURNAMENT TABLE (2.5D PERSPECTIVE VIEWPORT)
+       ========================================================================= */
+    .table-viewport {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(ellipse at 50% 45%, #18422d 0%, #0f2c1e 40%, #08170f 70%, #020604 100%);
+    }
+
+    .felt-table {
+      position: absolute;
+      width: 96vw;
+      height: 92vh;
+      border-radius: 40px;
+      background: radial-gradient(ellipse at 50% 48%, #1c4d34 0%, #123825 45%, #0a2116 75%, #040e09 100%);
+      box-shadow: 
+        inset 0 0 120px rgba(0, 0, 0, 0.92),
+        inset 0 2px 4px rgba(255, 255, 255, 0.12),
+        0 30px 80px rgba(0, 0, 0, 0.95),
+        0 0 0 1px rgba(255, 255, 255, 0.05);
+      overflow: hidden;
+    }
+
+    /* Micro felt fibers texture */
+    .felt-table::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+      background-size: 6px 6px;
+      pointer-events: none;
+    }
+
+    /* Soft Overhead Table Spotlight */
+    .table-spotlight {
+      position: absolute;
+      width: 75vw;
+      height: 65vh;
+      top: 15%;
+      left: 12.5%;
+      border-radius: 50%;
+      background: radial-gradient(circle at 50% 50%, rgba(255, 250, 230, 0.14) 0%, rgba(255, 250, 230, 0.04) 40%, transparent 70%);
+      pointer-events: none;
+    }
+
+    /* =========================================================================
+       DOMINO SPRITES (V2.0 - INDEPENDENT SHADOW LAYER ARCHITECTURE)
+       Eliminates all shadow bleeding / superposition between touching tiles!
+       ========================================================================= */
+    .felt-shadow {
+      position: absolute;
+      background: rgba(0, 0, 0, 0.72);
+      filter: blur(8px);
+      border-radius: 12px;
+      transform: translateY(7px);
+      pointer-events: none;
+    }
+    .felt-shadow.horizontal {
+      width: 88px;
+      height: 44px;
+    }
+    .felt-shadow.vertical {
+      width: 44px;
+      height: 88px;
+    }
+
+    .pbr-domino {
+      position: absolute;
+      border-radius: 8px;
+      background: linear-gradient(168deg, #ffffff 0%, #faf6ec 25%, #f2e9d7 70%, #ded0b4 100%);
+      box-shadow: 
+        inset 0 1.5px 1px rgba(255, 255, 255, 1),
+        inset 0 -1.5px 1.5px rgba(160, 135, 95, 0.45),
+        inset 1.5px 0 1px rgba(255, 255, 255, 0.85),
+        inset -1.5px 0 1.5px rgba(160, 135, 95, 0.45),
+        0 1px 0 #ded2be,
+        0 2px 0 #cfbeaa,
+        0 3.5px 0 #beac94,
+        0 4.5px 0 #ab977e,
+        0 5.5px 1px rgba(0, 0, 0, 0.25);
+      display: flex;
+      user-select: none;
+      cursor: default;
+      transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+      z-index: 10;
+    }
+
+    .pbr-domino.horizontal {
+      width: 88px;
+      height: 44px;
+      flex-direction: row;
+    }
+
+    .pbr-domino.vertical {
+      width: 44px;
+      height: 88px;
+      flex-direction: column;
+    }
+
+    /* Center Divider Groove */
+    .pbr-divider-h {
+      width: 100%;
+      height: 2px;
+      background: linear-gradient(90deg, #aa9573 0%, #614f31 50%, #aa9573 100%);
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.85);
+      position: relative;
+    }
+    .pbr-divider-v {
+      width: 2px;
+      height: 100%;
+      background: linear-gradient(180deg, #aa9573 0%, #614f31 50%, #aa9573 100%);
+      box-shadow: 1px 0 0 rgba(255, 255, 255, 0.85);
+      position: relative;
+    }
+
+    /* Polished Brass Spinner ("Perno") */
+    .pbr-perno {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #ffffff 0%, #ffe066 30%, #c4951b 70%, #594008 100%);
+      box-shadow: 
+        0 1.5px 2px rgba(0, 0, 0, 0.9),
+        inset 0 1px 1px rgba(255, 255, 255, 0.95);
+      z-index: 15;
+    }
+
+    /* Drilled Concave Pips with Specular Rim */
+    .pbr-pip {
+      width: 7.5px;
+      height: 7.5px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #2a2a2a 0%, #111111 55%, #000000 100%);
+      box-shadow: 
+        inset 0 1.5px 2px rgba(0, 0, 0, 0.95),
+        0 1px 1px rgba(255, 255, 255, 0.65);
+    }
+
+    .pbr-pip-hand {
+      width: 9.5px;
+      height: 9.5px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #2a2a2a 0%, #111111 55%, #000000 100%);
+      box-shadow: 
+        inset 0 1.5px 2px rgba(0, 0, 0, 0.95),
+        0 1px 1px rgba(255, 255, 255, 0.65);
+    }
+
+    .pbr-box {
+      width: 100%;
+      height: 100%;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      place-items: center;
+      padding: 3px;
+    }
+
+    /* Mini player badge attached to tile */
+    .tile-badge {
+      position: absolute;
+      top: -12px;
+      right: -8px;
+      padding: 1px 4px;
+      font-size: 8px;
+      font-weight: 900;
+      border-radius: 4px;
+      letter-spacing: 0.5px;
+      z-index: 25;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.6);
+    }
+
+    /* =========================================================================
+       PHYSICAL PLAYER RACK TRAY (BOTTOM)
+       ========================================================================= */
+    .player-rack-tray {
+      position: fixed;
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 12px 24px 16px;
+      border-radius: 26px;
+      background: linear-gradient(180deg, #18281f 0%, #0e1712 50%, #050a07 100%);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 
+        0 28px 60px rgba(0, 0, 0, 0.95),
+        inset 0 2px 2px rgba(255, 255, 255, 0.22),
+        inset 0 -6px 12px rgba(0, 0, 0, 0.9);
+      z-index: 40;
+    }
+
+    .player-rack-tray::before {
+      content: '';
+      position: absolute;
+      inset: 6px 12px 10px;
+      border-radius: 18px;
+      background: #050b07;
+      box-shadow: inset 0 8px 16px rgba(0, 0, 0, 0.95), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      z-index: 1;
+    }
+
+    .hand-domino-tile {
+      position: relative;
+      z-index: 2;
+      width: 60px;
+      height: 120px;
+      border-radius: 10px;
+      background: linear-gradient(168deg, #ffffff 0%, #faf6eb 25%, #f2e9d7 70%, #dfceb0 100%);
+      box-shadow: 
+        inset 0 2px 1px #ffffff,
+        inset 0 -2px 1.5px rgba(160, 135, 95, 0.45),
+        inset 1.5px 0 1px rgba(255, 255, 255, 0.85),
+        inset -1.5px 0 1.5px rgba(160, 135, 95, 0.45),
+        0 1px 0 #ded2be,
+        0 3px 0 #cfbeaa,
+        0 5.5px 0 #beac94,
+        0 12px 24px rgba(0, 0, 0, 0.9);
+      display: flex;
+      flex-direction: column;
+      cursor: pointer;
+      transition: all 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .hand-domino-tile.playable {
+      box-shadow: 
+        inset 0 2px 1px #ffffff,
+        0 0 0 2px rgba(16, 185, 129, 0.8),
+        0 1px 0 #ded2be,
+        0 3px 0 #cfbeaa,
+        0 5.5px 0 #beac94,
+        0 12px 24px rgba(0, 0, 0, 0.9),
+        0 0 16px rgba(16, 185, 129, 0.4);
+    }
+
+    .hand-domino-tile.playable:hover {
+      transform: translateY(-20px) scale(1.08);
+      box-shadow: 
+        inset 0 2px 1px #ffffff,
+        0 0 0 2.5px rgba(52, 211, 153, 1),
+        0 2px 0 #ded2be,
+        0 5px 0 #cfbeaa,
+        0 8px 0 #beac94,
+        0 30px 45px -4px rgba(0, 0, 0, 0.95),
+        0 0 28px rgba(52, 211, 153, 0.65);
+    }
+
+    .hand-domino-tile.disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+      filter: grayscale(0.2);
+    }
+    .hand-domino-tile.disabled:hover {
+      transform: none;
+      box-shadow: 
+        inset 0 2px 1px #ffffff,
+        0 1px 0 #ded2be,
+        0 3px 0 #cfbeaa,
+        0 5.5px 0 #beac94,
+        0 12px 24px rgba(0, 0, 0, 0.9);
+    }
+
+    /* OPPONENT TILES */
+    .opponent-standing-tile {
+      width: 42px;
+      height: 26px;
+      border-radius: 5px;
+      background: linear-gradient(180deg, #ffffff 0%, #faf5ea 40%, #e3d3b7 100%);
+      box-shadow: 
+        inset 0 1.5px 1px #ffffff,
+        inset 0 -1.5px 1px rgba(160, 135, 95, 0.4),
+        0 1px 0 #ded2be,
+        0 3px 0 #beac94,
+        0 10px 18px rgba(0, 0, 0, 0.85);
+      position: relative;
+      transition: all 0.3s ease;
+    }
+    .opponent-standing-tile::before {
+      content: '';
+      position: absolute;
+      top: -5px;
+      left: 0;
+      right: 0;
+      height: 5px;
+      border-radius: 4px 4px 0 0;
+      background: linear-gradient(90deg, #ffffff 0%, #faf5eb 50%, #eedfc4 100%);
+      box-shadow: inset 0 1px 0 #ffffff;
+    }
+
+    .opponent-side-tile {
+      width: 24px;
+      height: 42px;
+      border-radius: 5px;
+      background: linear-gradient(160deg, #ffffff 0%, #faf5eb 50%, #e0ceb1 100%);
+      box-shadow: 
+        inset 0 1.5px 1px #ffffff,
+        inset 0 -1.5px 1px rgba(160, 135, 95, 0.4),
+        0 1px 0 #ded2be,
+        0 3px 0 #beac94,
+        0 10px 18px rgba(0, 0, 0, 0.85);
+      transition: all 0.3s ease;
+    }
+
+    /* HUD PANELS */
+    .hud-glass {
+      background: rgba(12, 22, 17, 0.82);
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 18px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    }
+    .hud-subcard {
+      background: rgba(5, 12, 9, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+    }
+    .mat-cell {
+      height: 22px;
+      font-size: 10px;
+      font-weight: 700;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'JetBrains Mono', monospace;
+      transition: all 0.2s ease;
+    }
+    .mat-inhand { background: #10b981; color: #022614; font-weight: 800; box-shadow: 0 0 8px rgba(16,185,129,0.5); }
+    .mat-unplayed { background: #1e293b; color: #94a3b8; border: 1px solid rgba(255,255,255,0.05); }
+    .mat-played { background: #0b1118; color: #475569; text-decoration: line-through; opacity: 0.45; }
+
+    /* Target Zone Ghost Indicators on Board Ends */
+    .target-end-btn {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      z-index: 30;
+      animation: pulse-ring 1.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    @keyframes pulse-ring {
+      0%, 100% { transform: translate(-50%, -50%) scale(1); filter: brightness(1); }
+      50% { transform: translate(-50%, -50%) scale(1.08); filter: brightness(1.25); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 2.5D TOURNAMENT CASINO TABLE -->
+  <div class="table-viewport">
+    <div class="felt-table" id="felt-table">
+      <div class="table-spotlight"></div>
+
+      <!-- Watermark -->
+      <div class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.035] select-none">
+        <div class="w-96 h-96 rounded-full border-8 border-white flex items-center justify-center">
+          <span class="font-black text-7xl tracking-widest text-white uppercase">DOMINÓ</span>
+        </div>
+      </div>
+
+      <!-- PLAYED DOMINOES CHAIN CONTAINER -->
+      <div class="absolute inset-0 flex items-center justify-center" id="board-viewport">
+        <div class="relative" id="board-container" style="width: 800px; height: 480px;">
+          <!-- LAYER 1: CONTACT SHADOWS ON FELT -->
+          <div id="shadows-layer" class="absolute inset-0 pointer-events-none"></div>
+
+          <!-- LAYER 2: SOLID PBR TILES -->
+          <div id="tiles-layer" class="absolute inset-0"></div>
+
+          <!-- TARGET CHOICE PROMPT BUTTONS (When tile matches both ends) -->
+          <div id="targets-layer" class="absolute inset-0 pointer-events-none"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       TOP APPLICATION BAR
+       ========================================================================= -->
+  <header class="fixed top-0 left-0 right-0 h-14 z-50 flex items-center justify-between px-6 bg-[#040d08]/85 backdrop-blur-md border-b border-white/10">
+    <div class="flex items-center space-x-3">
+      <button onclick="window.location.reload()" title="Reiniciar" class="text-zinc-400 hover:text-white transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+      </button>
+      <div class="flex items-center space-x-2">
+        <span class="font-extrabold tracking-wider text-sm sm:text-base text-white">DOMINÓ MAESTRO</span>
+        <span class="text-sm">🇩🇴</span>
+        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-400">VERSIÓN 2.0 INTERACTIVA</span>
+      </div>
+    </div>
+
+    <!-- Match Scoreboard -->
+    <div class="flex items-center space-x-3 px-4 py-1.5 rounded-2xl bg-black/55 border border-white/10 backdrop-blur-md shadow-xl">
+      <div class="flex items-center space-x-1.5">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span class="text-xs font-black tracking-widest text-emerald-400" id="live-status-tag">EN VIVO</span>
+      </div>
+      <div class="h-3.5 w-px bg-white/20"></div>
+      <div class="text-center">
+        <div class="text-[9px] uppercase font-bold tracking-widest text-zinc-400">Torneo (Meta: 200 pts)</div>
+        <div class="text-lg font-black text-white font-mono tracking-wider leading-none" id="scoreboard-text">
+          <span class="text-emerald-400" id="score-us">0</span> <span class="text-zinc-500">-</span> <span class="text-rose-400" id="score-them">0</span>
+        </div>
+      </div>
+      <div class="h-3.5 w-px bg-white/20"></div>
+      <div class="text-center">
+        <div class="text-[9px] uppercase font-bold tracking-widest text-zinc-400">Mano</div>
+        <div class="text-sm font-bold text-white font-mono leading-none" id="hand-indicator">Mano #1</div>
+      </div>
+      <div class="h-3.5 w-px bg-white/20"></div>
+      <div class="text-center">
+        <div class="text-[9px] uppercase font-bold tracking-widest text-zinc-400">Tiempo</div>
+        <div class="text-sm font-bold text-white font-mono leading-none" id="round-timer">00:00</div>
+      </div>
+    </div>
+
+    <!-- Actions & Controls -->
+    <div class="flex items-center space-x-3 text-zinc-400">
+      <button onclick="restartRound()" class="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-zinc-200 transition">
+        Nueva Mano
+      </button>
+      <button onclick="resetMatch()" class="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-zinc-200 transition">
+        Reiniciar Todo
+      </button>
+      <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 p-[1px] cursor-pointer">
+        <div class="w-full h-full rounded-full bg-zinc-900 flex items-center justify-center">
+          <span class="text-xs font-bold text-emerald-400">RC</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- =========================================================================
+       LEFT HUD: TACTICAL COACH (DOMINICAN MASTER DOCTRINE)
+       ========================================================================= -->
+  <aside class="fixed left-6 top-20 bottom-6 w-72 hud-glass p-5 flex flex-col justify-between z-30">
+    <div class="space-y-3.5 overflow-y-auto pr-1">
+      <div class="flex items-center justify-between pb-2 border-b border-white/10">
+        <div>
+          <h2 class="text-sm font-extrabold text-white">Estratega Táctico</h2>
+          <p class="text-[10px] text-zinc-400">Doctrina Táctica Dominicana</p>
+        </div>
+        <span class="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-[9px] font-extrabold text-emerald-400 tracking-wider">EN VIVO</span>
+      </div>
+
+      <!-- La Salida -->
+      <div class="hud-subcard p-3">
+        <div class="flex items-center justify-between text-xs font-bold text-zinc-200 mb-0.5">
+          <span>La Salida</span>
+          <span class="text-[10px] font-mono text-amber-400" id="hud-salidor-name">Salidor: Tú</span>
+        </div>
+        <p class="text-[10px] text-zinc-400 mb-2" id="hud-salida-desc">Apertura oficial</p>
+        <div class="flex items-center justify-between text-[11px] font-bold font-mono mb-1">
+          <span class="text-emerald-400" id="hud-salida-val">39%</span>
+          <span class="text-zinc-500" id="hud-salida-rival">61%</span>
+        </div>
+        <div class="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden flex">
+          <div id="hud-salida-bar" class="h-full bg-emerald-400 rounded-l-full transition-all duration-300" style="width: 39%;"></div>
+          <div id="hud-salida-rival-bar" class="h-full bg-rose-500/80 rounded-r-full transition-all duration-300" style="width: 61%;"></div>
+        </div>
+      </div>
+
+      <!-- Partner Signaling -->
+      <div class="hud-subcard p-3">
+        <div class="flex items-center justify-between text-xs font-bold mb-1.5">
+          <span class="text-zinc-200">Señalización de Pareja</span>
+          <span class="text-emerald-400 font-mono text-[11px]" id="hud-partner-val">50%</span>
+        </div>
+        <div class="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden mb-1.5">
+          <div id="hud-partner-bar" class="h-full bg-gradient-to-r from-emerald-500 to-cyan-400 rounded-full transition-all duration-300" style="width: 50%;"></div>
+        </div>
+        <p class="text-[10px] text-zinc-400" id="hud-partner-note">Alineación táctica con Compañero</p>
+      </div>
+
+      <!-- Tranca Risk -->
+      <div class="hud-subcard p-3">
+        <div class="flex items-center justify-between text-xs font-bold mb-1.5">
+          <span class="text-zinc-200">Riesgo de Tranca</span>
+          <span class="text-amber-400 font-mono text-[11px]" id="hud-tranca-val">14%</span>
+        </div>
+        <div class="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden mb-1.5">
+          <div id="hud-tranca-bar" class="h-full bg-amber-400 rounded-full transition-all duration-300" style="width: 14%;"></div>
+        </div>
+        <p class="text-[10px] text-zinc-400" id="hud-tranca-note">Puntas: [Esperando apertura]</p>
+      </div>
+
+      <!-- Live Tactical Advice Box -->
+      <div class="p-3 rounded-xl bg-amber-950/30 border border-amber-500/30 text-amber-200 space-y-1.5">
+        <div class="flex items-center gap-1 text-[11px] font-bold text-amber-400">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+          <span>Doctrina Dominicana</span>
+        </div>
+        <p class="text-[11px] leading-relaxed text-zinc-200" id="hud-coach-advice">
+          Calculando mejor jugada...
+        </p>
+      </div>
+    </div>
+
+    <!-- Match Status Footer Button -->
+    <button onclick="restartRound()" class="w-full py-2 rounded-xl bg-zinc-800/80 hover:bg-zinc-700/80 border border-white/10 text-xs font-bold text-zinc-200 transition shadow-lg shadow-black/40 mt-2">
+      Nueva Mano 🔄
+    </button>
+  </aside>
+
+  <!-- =========================================================================
+       RIGHT HUD: 28-TILE PROBABILITY MATRIX & CARD COUNTING
+       ========================================================================= -->
+  <aside class="fixed right-6 top-20 bottom-6 w-72 hud-glass p-5 flex flex-col justify-between z-30">
+    <div class="overflow-y-auto pr-1 space-y-3">
+      <div class="pb-2 border-b border-white/10">
+        <h2 class="text-sm font-extrabold text-white">Matriz de Probabilidades (28 Fichas)</h2>
+        <p class="text-[10px] text-zinc-400">Conteo exacto de fichas en mesa</p>
+      </div>
+
+      <!-- Quick Legend Badges -->
+      <div class="flex items-center justify-between text-[10px] font-bold">
+        <span class="flex items-center gap-1.5 text-emerald-400">
+          <span class="w-2.5 h-2.5 rounded bg-emerald-500"></span> Tu Mano
+        </span>
+        <span class="flex items-center gap-1.5 text-zinc-400">
+          <span class="w-2.5 h-2.5 rounded bg-slate-800"></span> Ocultas
+        </span>
+        <span class="flex items-center gap-1.5 text-zinc-500">
+          <span class="w-2.5 h-2.5 rounded bg-black/60 line-through"></span> Jugadas
+        </span>
+      </div>
+
+      <!-- 28-TILE MATRIX GRID (7 COLUMNS X 4-7 ROWS) -->
+      <div class="grid grid-cols-7 gap-1 p-2 rounded-xl bg-black/40 border border-white/5" id="tile-matrix-grid">
+        <!-- Generated dynamically via JS -->
+      </div>
+
+      <!-- Card Counting Breakdown -->
+      <div class="space-y-2 text-xs">
+        <div class="flex items-center justify-between text-zinc-300">
+          <span>Fichas Ocultas Rivales</span>
+          <span class="font-bold font-mono text-amber-400 text-sm" id="mat-unplayed-count">14</span>
+        </div>
+        <div class="flex items-center justify-between text-zinc-300">
+          <span>Fichas Jugadas en Mesa</span>
+          <span class="font-bold font-mono text-emerald-400 text-sm" id="mat-played-count">0 / 28</span>
+        </div>
+        <div>
+          <div class="flex items-center justify-between text-zinc-300 mb-1">
+            <span>Progreso de la Mano</span>
+            <span class="font-bold font-mono text-zinc-400 text-[11px]" id="mat-progress-text">0%</span>
+          </div>
+          <div class="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden">
+            <div id="mat-progress-bar" class="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-300" style="width: 0%;"></div>
+          </div>
+        </div>
+
+        <!-- Pips count table -->
+        <div class="p-2 rounded-lg bg-black/50 border border-white/5 text-[10px] font-mono">
+          <div class="text-zinc-400 font-bold mb-1">Fichas Vivas por Pinta (0-6):</div>
+          <div class="grid grid-cols-7 gap-1 text-center font-bold" id="suit-counts-row">
+            <!-- 0..6 live suit count -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="text-[9px] text-zinc-500 text-center pt-2 border-t border-white/5">
+      Métricas en vivo según Doctrina Dominicana FEDODO
+    </div>
+  </aside>
+
+  <!-- =========================================================================
+       OPPONENT 1: COMPAÑERO (TOP - NORTH)
+       ========================================================================= -->
+  <div class="fixed top-16 left-1/2 -translate-x-1/2 flex flex-col items-center z-20">
+    <div id="badge-player-2" class="px-3 py-1 rounded-full text-xs font-bold flex items-center gap-2 mb-1.5 bg-slate-900/80 border border-white/10 text-cyan-300 shadow-lg">
+      <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+      <span>Compañero (Norte)</span>
+      <span class="font-mono text-zinc-400" id="count-player-2">(7)</span>
+      <span id="turn-tag-2" class="hidden px-1.5 py-0.2 rounded bg-amber-400 text-slate-950 text-[9px] font-black uppercase">TURNO</span>
+    </div>
+    <div class="flex gap-1.5" id="rack-player-2">
+      <!-- 7 standing tiles -->
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       OPPONENT 2: RIVAL IZQUIERDA (WEST - LEFT)
+       ========================================================================= -->
+  <div id="badge-player-3" class="fixed left-[320px] top-20 z-40 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-2 bg-slate-900/90 border border-white/10 text-orange-400 shadow-xl transition-all">
+    <span class="w-2 h-2 rounded-full bg-orange-500"></span>
+    <span>Rival Izq</span>
+    <span class="font-mono text-zinc-400" id="count-player-3">(7)</span>
+    <span id="turn-tag-3" class="hidden px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 text-[9px] font-black uppercase">TURNO</span>
+  </div>
+  <div class="fixed left-12 top-1/2 -translate-y-1/2 flex flex-col gap-1.5 rotate-6 z-10 opacity-70 pointer-events-none" id="rack-player-3">
+    <!-- 7 side standing tiles tucked under side panel -->
+  </div>
+
+  <!-- =========================================================================
+       OPPONENT 3: RIVAL DERECHA (EAST - RIGHT)
+       ========================================================================= -->
+  <div id="badge-player-1" class="fixed right-[320px] top-20 z-40 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-2 bg-slate-900/90 border border-white/10 text-rose-400 shadow-xl transition-all">
+    <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+    <span>Rival Der</span>
+    <span class="font-mono text-zinc-400" id="count-player-1">(7)</span>
+    <span id="turn-tag-1" class="hidden px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 text-[9px] font-black uppercase">TURNO</span>
+  </div>
+  <div class="fixed right-12 top-1/2 -translate-y-1/2 flex flex-col gap-1.5 -rotate-6 z-10 opacity-70 pointer-events-none" id="rack-player-1">
+    <!-- 7 side standing tiles tucked under side panel -->
+  </div>
+
+  <!-- =========================================================================
+       PASS ACTION / YOUR TURN PROMPT BAR
+       ========================================================================= -->
+  <div class="fixed bottom-[196px] left-1/2 -translate-x-1/2 z-40 flex flex-col items-center pointer-events-none" id="action-prompt-container">
+    <div id="pass-prompt-btn" class="pointer-events-auto hidden px-5 py-2 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs tracking-wider uppercase shadow-[0_10px_30px_rgba(245,158,11,0.6)] cursor-pointer transition transform hover:scale-105 active:scale-95 flex items-center gap-2 border border-amber-300">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+      <span>No Llevas — Pasar Turno (Paso)</span>
+    </div>
+    <div id="turn-notification" class="hidden px-4 py-1.5 rounded-full bg-black/85 border border-emerald-500/50 text-emerald-400 text-xs font-bold shadow-[0_4px_16px_rgba(0,0,0,0.8)] backdrop-blur-md flex items-center gap-2">
+      <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+      <span>¡Es tu turno! Haz clic en una ficha resaltada para jugar.</span>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       PHYSICAL PLAYER RACK TRAY (BOTTOM - YOUR HAND)
+       ========================================================================= -->
+  <div class="fixed bottom-[158px] left-1/2 -translate-x-1/2 flex items-center gap-2 z-40 pointer-events-none">
+    <div id="badge-player-0" class="px-3.5 py-1 rounded-full text-xs font-bold flex items-center gap-2 bg-slate-900/95 border border-white/10 text-emerald-300 shadow-xl pointer-events-auto">
+      <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+      <span>Tú (Sur)</span>
+      <span class="font-mono text-zinc-300 font-bold" id="count-player-0">(7 fichas)</span>
+      <span id="turn-tag-0" class="hidden px-2 py-0.5 rounded bg-emerald-400 text-slate-950 text-[10px] font-black uppercase tracking-wider animate-pulse">TU TURNO</span>
+    </div>
+  </div>
+
+  <div class="player-rack-tray" id="player-hand-rack">
+    <!-- Hand tiles rendered dynamically -->
+  </div>
+
+  <!-- =========================================================================
+       GAME OVER / ROUND OVER MODAL
+       ========================================================================= -->
+  <div id="game-over-modal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center hidden">
+    <div class="max-w-md w-full mx-4 p-6 rounded-3xl bg-slate-950 border border-emerald-500/40 shadow-2xl text-center space-y-4">
+      <div class="w-14 h-14 rounded-full bg-emerald-500/20 border border-emerald-500/40 mx-auto flex items-center justify-center text-2xl">
+        🏆
+      </div>
+      <h3 class="text-xl font-black text-white" id="modal-title">¡Mano Terminada!</h3>
+      <p class="text-sm text-zinc-300" id="modal-desc">Detalles del resultado...</p>
+      
+      <div class="p-3 rounded-2xl bg-black/60 border border-white/5 space-y-1 text-xs font-mono">
+        <div class="flex justify-between text-zinc-400">
+          <span>Puntos ganados:</span>
+          <span class="text-emerald-400 font-bold text-sm" id="modal-points">+0 pts</span>
+        </div>
+        <div class="flex justify-between text-zinc-400">
+          <span>Marcador General:</span>
+          <span class="text-white font-bold" id="modal-score">Nosotros 0 - Ellos 0</span>
+        </div>
+      </div>
+
+      <div class="flex gap-3 pt-2">
+        <button onclick="restartRound()" class="flex-1 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm tracking-wider uppercase transition shadow-lg shadow-emerald-500/30">
+          Siguiente Mano ➡️
+        </button>
+        <button onclick="resetMatch()" class="py-3 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 font-bold text-sm transition border border-white/10">
+          Reiniciar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       DOMINO MASTER ENGINE - FULL DOMINICAN MATCH LOGIC
+       ========================================================================= -->
+  <script>
+    // Audio synthesis for realistic tactile wooden domino clack
+    function playClackSound() {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(340, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(70, ctx.currentTime + 0.05);
+        gain.gain.setValueAtTime(0.4, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.05);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.06);
+      } catch (e) {}
+    }
+
+    // 28 Double-Six Domino Set
+    function generateFullSet() {
+      const set = [];
+      for (let i = 0; i <= 6; i++) {
+        for (let j = i; j <= 6; j++) {
+          set.push([i, j]);
+        }
+      }
+      return set;
+    }
+
+    function shuffle(array) {
+      const arr = [...array];
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    // Standard 3x3 Pip coordinates
+    function getPips(val, orientation = 'vertical') {
+      const mapping_v = {
+        0: [],
+        1: [4],
+        2: [0, 8],
+        3: [0, 4, 8],
+        4: [0, 2, 6, 8],
+        5: [0, 2, 4, 6, 8],
+        6: [0, 2, 3, 5, 6, 8] // 3 on left column, 3 on right column
+      };
+      const mapping_h = {
+        0: [],
+        1: [4],
+        2: [2, 6],
+        3: [2, 4, 6],
+        4: [0, 2, 6, 8],
+        5: [0, 2, 4, 6, 8],
+        6: [0, 1, 2, 6, 7, 8] // 3 on top row, 3 on bottom row
+      };
+      return orientation === 'horizontal' ? mapping_h[val] : mapping_v[val];
+    }
+
+    function buildPipsHtml(val, orientation = 'vertical', isHand = false) {
+      const pipClass = isHand ? 'pbr-pip-hand' : 'pbr-pip';
+      const active = getPips(val, orientation);
+      let html = '';
+      for (let i = 0; i < 9; i++) {
+        if (active.includes(i)) {
+          html += `<div class="${pipClass}"></div>`;
+        } else {
+          html += `<div></div>`;
+        }
+      }
+      return html;
+    }
+
+    // GAME STATE
+    const TARGET_SCORE = 200;
+    let handNumber = 1;
+    let gameScores = [0, 0]; // [Us (0 & 2), Them (1 & 3)]
+    let hands = [[], [], [], []]; // 0: You, 1: East, 2: North, 3: West
+    
+    // Explicit, verifiable board chain engine
+    let centerItem = null; // { tile: [a, b], isDouble: boolean, playedBy: number, playOrder: number }
+    let leftArm = [];      // Array of { tile: [a, b], inner: number, outer: number, isDouble: boolean, playedBy: number, playOrder: number }
+    let rightArm = [];     // Array of { tile: [a, b], inner: number, outer: number, isDouble: boolean, playedBy: number, playOrder: number }
+    let boardEnds = null;  // [leftEnd, rightEnd]
+    let playOrder = 0;
+
+    let turn = 0;
+    let salidorIndex = 0;
+    let lastWinnerIndex = null;
+    let passedSuits = [[], [], [], []];
+    let gameOver = null;
+    let pendingChoice = null; // { tile: [a, b] }
+    let consecutivePasses = 0;
+
+    const PLAYER_NAMES = ['Tú', 'Rival Derecha', 'Compañero', 'Rival Izquierda'];
+    const PLAYER_BADGES = {
+      0: { tag: 'TÚ', color: 'bg-emerald-500 text-slate-950' },
+      1: { tag: 'RD', color: 'bg-rose-500 text-white' },
+      2: { tag: 'COM', color: 'bg-cyan-400 text-slate-950' },
+      3: { tag: 'RI', color: 'bg-orange-500 text-white' }
+    };
+
+    function getAllBoardTiles() {
+      const all = [];
+      if (centerItem) all.push(centerItem);
+      all.push(...leftArm);
+      all.push(...rightArm);
+      return all;
+    }
+
+    // Calculate playable moves for a player with strict end matching
+    function getPlayableMoves(hand, ends) {
+      if (!ends) {
+        if (handNumber === 1) {
+          const has66 = hand.find(([a, b]) => a === 6 && b === 6);
+          if (has66) return [{ tile: has66, end: 'any' }];
+        }
+        return hand.map(t => ({ tile: t, end: 'any' }));
+      }
+      const moves = [];
+      hand.forEach(tile => {
+        const canLeft = tile[0] === ends[0] || tile[1] === ends[0];
+        const canRight = tile[0] === ends[1] || tile[1] === ends[1];
+        if (canLeft && canRight && ends[0] !== ends[1]) {
+          moves.push({ tile, end: 'both' });
+        } else if (canLeft) {
+          moves.push({ tile, end: 'left' });
+        } else if (canRight) {
+          moves.push({ tile, end: 'right' });
+        }
+      });
+      return moves;
+    }
+
+    let timerInterval = null;
+    let secondsElapsed = 0;
+    function startTimer() {
+      clearInterval(timerInterval);
+      secondsElapsed = 0;
+      const el = document.getElementById('round-timer');
+      if (el) el.innerText = '00:00';
+      timerInterval = setInterval(() => {
+        if (!gameOver) {
+          secondsElapsed++;
+          const m = String(Math.floor(secondsElapsed / 60)).padStart(2, '0');
+          const s = String(secondsElapsed % 60).padStart(2, '0');
+          if (el) el.innerText = `${m}:${s}`;
+        }
+      }, 1000);
+    }
+
+    // START / RESTART ROUND
+    function startNewRound(num) {
+      handNumber = typeof num === 'number' ? num : handNumber + 1;
+      startTimer();
+      document.getElementById('hand-indicator').innerText = `Mano #${handNumber}`;
+      document.getElementById('game-over-modal').classList.add('hidden');
+      pendingChoice = null;
+      consecutivePasses = 0;
+
+      const deck = shuffle(generateFullSet());
+      hands = [
+        deck.slice(0, 7),
+        deck.slice(7, 14),
+        deck.slice(14, 21),
+        deck.slice(21, 28)
+      ];
+
+      centerItem = null;
+      leftArm = [];
+      rightArm = [];
+      boardEnds = null;
+      playOrder = 0;
+      passedSuits = [[], [], [], []];
+      gameOver = null;
+
+      // Salida logic
+      let starter = 0;
+      if (handNumber === 1) {
+        hands.forEach((hand, idx) => {
+          if (hand.some(([a, b]) => a === 6 && b === 6)) {
+            starter = idx;
+          }
+        });
+      } else {
+        starter = lastWinnerIndex !== null ? lastWinnerIndex : (salidorIndex + 1) % 4;
+      }
+
+      salidorIndex = starter;
+      turn = starter;
+
+      renderAll();
+      processTurn();
+    }
+
+    function restartRound() {
+      startNewRound(handNumber);
+    }
+
+    function resetMatch() {
+      gameScores = [0, 0];
+      lastWinnerIndex = null;
+      startNewRound(1);
+    }
+
+    function removeFromHand(playerIdx, tile) {
+      const idx = hands[playerIdx].findIndex(t => 
+        (t[0] === tile[0] && t[1] === tile[1]) || (t[0] === tile[1] && t[1] === tile[0])
+      );
+      if (idx !== -1) {
+        hands[playerIdx].splice(idx, 1);
+      }
+    }
+
+    // EXECUTE PLAY WITH STRICT VALIDATION
+    function makePlay(playerIdx, tile, targetEnd) {
+      consecutivePasses = 0;
+
+      // 1. First tile on empty board
+      if (!boardEnds) {
+        playClackSound();
+        playOrder = 1;
+        centerItem = {
+          tile: [...tile],
+          isDouble: tile[0] === tile[1],
+          playedBy: playerIdx,
+          playOrder: 1
+        };
+        leftArm = [];
+        rightArm = [];
+        boardEnds = [tile[0], tile[1]];
+        removeFromHand(playerIdx, tile);
+        afterPlay(playerIdx, tile);
+        return;
+      }
+
+      // 2. Play on left end
+      if (targetEnd === 'left') {
+        if (tile[0] !== boardEnds[0] && tile[1] !== boardEnds[0]) {
+          console.error(`Jugada inválida rechazada: ficha [${tile}] no calza con punta izquierda ${boardEnds[0]}`);
+          return;
+        }
+        playClackSound();
+        playOrder++;
+        const inner = boardEnds[0];
+        const outer = tile[0] === inner ? tile[1] : tile[0];
+        leftArm.push({
+          tile: [...tile],
+          inner,
+          outer,
+          isDouble: tile[0] === tile[1],
+          playedBy: playerIdx,
+          playOrder
+        });
+        boardEnds = [outer, boardEnds[1]];
+        removeFromHand(playerIdx, tile);
+        afterPlay(playerIdx, tile);
+        return;
+      }
+
+      // 3. Play on right end
+      if (targetEnd === 'right') {
+        if (tile[0] !== boardEnds[1] && tile[1] !== boardEnds[1]) {
+          console.error(`Jugada inválida rechazada: ficha [${tile}] no calza con punta derecha ${boardEnds[1]}`);
+          return;
+        }
+        playClackSound();
+        playOrder++;
+        const inner = boardEnds[1];
+        const outer = tile[0] === inner ? tile[1] : tile[0];
+        rightArm.push({
+          tile: [...tile],
+          inner,
+          outer,
+          isDouble: tile[0] === tile[1],
+          playedBy: playerIdx,
+          playOrder
+        });
+        boardEnds = [boardEnds[0], outer];
+        removeFromHand(playerIdx, tile);
+        afterPlay(playerIdx, tile);
+        return;
+      }
+    }
+
+    function afterPlay(playerIdx, tile) {
+      pendingChoice = null;
+      renderAll();
+
+      // Check Pegada (Dominó)
+      if (hands[playerIdx].length === 0) {
+        handleWin(playerIdx, 'dominó', tile);
+        return;
+      }
+
+      advanceTurn((playerIdx + 1) % 4, playerIdx);
+    }
+
+    // PASS TURN
+    function handlePass(playerIdx) {
+      consecutivePasses++;
+      if (boardEnds) {
+        passedSuits[playerIdx] = Array.from(new Set([...passedSuits[playerIdx], boardEnds[0], boardEnds[1]]));
+      }
+
+      // First pass Dominican bonus (+25 pts)
+      const allPlayedCount = getAllBoardTiles().length;
+      if (allPlayedCount === 1 && playerIdx === (salidorIndex + 1) % 4) {
+        const salidorIsOurTeam = salidorIndex === 0 || salidorIndex === 2;
+        if (salidorIsOurTeam) {
+          gameScores[0] += 25;
+        } else {
+          gameScores[1] += 25;
+        }
+      }
+
+      renderAll();
+      advanceTurn((playerIdx + 1) % 4, playerIdx);
+    }
+
+    // CHECK TRANQUE / ADVANCE TURN
+    function advanceTurn(nextPlayer, closerIdx) {
+      // Check if all blocked
+      let anyCanPlay = false;
+      for (let i = 0; i < 4; i++) {
+        if (getPlayableMoves(hands[i], boardEnds).length > 0) {
+          anyCanPlay = true;
+          break;
+        }
+      }
+
+      if (!anyCanPlay && boardEnds) {
+        handleTranque(closerIdx);
+        return;
+      }
+
+      turn = nextPlayer;
+      renderAll();
+      processTurn();
+    }
+
+    // PROCESS TURN (TRIGGER BOT IF AI TURN)
+    function processTurn() {
+      if (gameOver) return;
+
+      if (turn === 0) {
+        // Player turn
+        const playable = getPlayableMoves(hands[0], boardEnds);
+        const passBtn = document.getElementById('pass-prompt-btn');
+        const notif = document.getElementById('turn-notification');
+
+        if (playable.length === 0) {
+          passBtn.classList.remove('hidden');
+          passBtn.onclick = () => {
+            passBtn.classList.add('hidden');
+            handlePass(0);
+          };
+          notif.classList.add('hidden');
+        } else {
+          passBtn.classList.add('hidden');
+          notif.classList.remove('hidden');
+        }
+      } else {
+        // AI Bot turn
+        document.getElementById('pass-prompt-btn').classList.add('hidden');
+        document.getElementById('turn-notification').classList.add('hidden');
+
+        setTimeout(() => {
+          if (gameOver) return;
+          const currentHand = hands[turn];
+          const playable = getPlayableMoves(currentHand, boardEnds);
+
+          if (playable.length === 0) {
+            handlePass(turn);
+          } else {
+            // Dominican Master Doctrine Choice:
+            // Prefer heavy tiles & doubles, preserve partner strength
+            playable.sort((a, b) => {
+              const pipsA = a.tile[0] + a.tile[1];
+              const pipsB = b.tile[0] + b.tile[1];
+              const isDblA = a.tile[0] === a.tile[1] ? 4 : 0;
+              const isDblB = b.tile[0] === b.tile[1] ? 4 : 0;
+              return (pipsB + isDblB) - (pipsA + isDblA);
+            });
+
+            const choice = playable[0];
+            const targetEnd = choice.end === 'both' ? 'left' : choice.end === 'any' ? 'left' : choice.end;
+            makePlay(turn, choice.tile, targetEnd);
+          }
+        }, 950);
+      }
+    }
+
+    // WIN HANDLER
+    function handleWin(winnerIdx, reason, winningTile) {
+      lastWinnerIndex = winnerIdx;
+      const isOurTeam = winnerIdx === 0 || winnerIdx === 2;
+      const winnerName = PLAYER_NAMES[winnerIdx];
+
+      // Sum all remaining pips
+      let totalPts = 0;
+      hands.forEach(h => {
+        h.forEach(([a, b]) => totalPts += a + b);
+      });
+
+      // Capicua bonus check (+25 pts)
+      let capicuaBonus = 0;
+      if (winningTile && winningTile[0] !== winningTile[1] && boardEnds) {
+        const matchesBoth = (winningTile[0] === boardEnds[0] && winningTile[1] === boardEnds[1]) ||
+                            (winningTile[0] === boardEnds[1] && winningTile[1] === boardEnds[0]);
+        if (matchesBoth) {
+          capicuaBonus = 25;
+        }
+      }
+
+      const awarded = totalPts + capicuaBonus;
+      if (isOurTeam) {
+        gameScores[0] += awarded;
+        if (typeof confetti === 'function') confetti({ particleCount: 140, spread: 80, origin: { y: 0.6 } });
+      } else {
+        gameScores[1] += awarded;
+      }
+
+      gameOver = { winner: winnerIdx, points: awarded, reason };
+
+      // Show Modal
+      document.getElementById('modal-title').innerText = isOurTeam ? '¡VICTORIA! 🎉' : 'Mano para el Rival';
+      document.getElementById('modal-desc').innerText = `¡DOMINÓ! ${winnerName} se pegó con éxito${capicuaBonus > 0 ? ' [¡CAPICÚA! +25 pts]' : ''}. Suman +${awarded} pts para ${isOurTeam ? 'Nosotros' : 'Ellos'}.`;
+      document.getElementById('modal-points').innerText = `+${awarded} pts`;
+      document.getElementById('modal-score').innerText = `Nosotros ${gameScores[0]} - ${gameScores[1]} Ellos`;
+      document.getElementById('game-over-modal').classList.remove('hidden');
+
+      renderAll();
+    }
+
+    // TRANQUE HANDLER
+    function handleTranque(closerIdx) {
+      // Compare points of all players
+      const handSums = hands.map(h => h.reduce((s, [a, b]) => s + a + b, 0));
+      const allFour = handSums.reduce((a, b) => a + b, 0);
+
+      // Dominican 1 vs 1 rule: Closer vs Next Opponent
+      const nextOpponentIdx = (closerIdx + 1) % 4;
+      const closerPts = handSums[closerIdx];
+      const oppPts = handSums[nextOpponentIdx];
+      const closerIsOurTeam = closerIdx === 0 || closerIdx === 2;
+
+      let winnerIdx = closerIdx;
+      let winnerLabel = '';
+
+      if (closerPts < oppPts) {
+        winnerIdx = closerIdx;
+        winnerLabel = closerIsOurTeam ? 'Nosotros' : 'Ellos';
+      } else if (oppPts < closerPts) {
+        winnerIdx = nextOpponentIdx;
+        const nextIsOurTeam = nextOpponentIdx === 0 || nextOpponentIdx === 2;
+        winnerLabel = nextIsOurTeam ? 'Nosotros' : 'Ellos';
+      } else {
+        // Tie goes to closer under FEDODO rules
+        winnerIdx = closerIdx;
+        winnerLabel = closerIsOurTeam ? 'Nosotros' : 'Ellos';
+      }
+
+      lastWinnerIndex = winnerIdx;
+      const isOurTeam = winnerIdx === 0 || winnerIdx === 2;
+      if (isOurTeam) {
+        gameScores[0] += allFour;
+        if (typeof confetti === 'function') confetti({ particleCount: 100, spread: 70 });
+      } else {
+        gameScores[1] += allFour;
+      }
+
+      gameOver = { winner: winnerIdx, points: allFour, reason: 'tranque' };
+
+      document.getElementById('modal-title').innerText = '¡TRANQUE EN LA MESA!';
+      document.getElementById('modal-desc').innerText = `Cerró ${PLAYER_NAMES[closerIdx]} (${closerPts} pts) vs ${PLAYER_NAMES[nextOpponentIdx]} (${oppPts} pts). Ganó ${winnerLabel} por menor puntaje y se lleva los +${allFour} pts totales.`;
+      document.getElementById('modal-points').innerText = `+${allFour} pts`;
+      document.getElementById('modal-score').innerText = `Nosotros ${gameScores[0]} - ${gameScores[1]} Ellos`;
+      document.getElementById('game-over-modal').classList.remove('hidden');
+
+      renderAll();
+    }
+
+    // =========================================================================
+    // BOARD LAYOUT CALCULATOR & RENDERING (EXACT PIP SEAMS & ACCURATE OPEN ENDS)
+    // =========================================================================
+    const TILE_LONG = 88;
+    const TILE_SHORT = 44;
+    const ARM_ROW = 4;
+
+    function layoutArm(armItems, startX, startY, baseDir = 1) {
+      const placed = [];
+      let x = startX;
+      let y = startY;
+      let direction = baseDir;
+      let count = 0;
+      let lastDouble = false;
+
+      armItems.forEach((item) => {
+        const isDouble = item.isDouble;
+        const inner = item.inner;
+        const outer = item.outer;
+
+        if (count < ARM_ROW) {
+          const w = isDouble ? TILE_SHORT : TILE_LONG;
+          const h = isDouble ? TILE_LONG : TILE_SHORT;
+          const left = direction > 0 ? x : x - w;
+          const top = y - h / 2;
+
+          let box0, box1;
+          if (isDouble) {
+            box0 = inner;
+            box1 = inner;
+          } else if (direction > 0) {
+            box0 = inner;
+            box1 = outer;
+          } else {
+            box0 = outer;
+            box1 = inner;
+          }
+
+          const tipX = direction > 0 ? left + w : left;
+          const tipY = top + h / 2;
+
+          placed.push({
+            tile: item.tile,
+            playedBy: item.playedBy,
+            playOrder: item.playOrder,
+            left,
+            top,
+            w,
+            h,
+            vertical: isDouble,
+            box0,
+            box1,
+            tipX,
+            tipY
+          });
+
+          x += direction * w;
+          lastDouble = isDouble;
+          count++;
+        } else {
+          // Turn corner downwards
+          const w = TILE_SHORT;
+          const h = TILE_LONG;
+          const cornerLeft = direction > 0 ? x - TILE_SHORT : x;
+          const cornerTop = y + (lastDouble ? TILE_LONG / 2 : TILE_SHORT / 2);
+
+          const tipX = cornerLeft + w / 2;
+          const tipY = cornerTop + h;
+
+          placed.push({
+            tile: item.tile,
+            playedBy: item.playedBy,
+            playOrder: item.playOrder,
+            left: cornerLeft,
+            top: cornerTop,
+            w,
+            h,
+            vertical: true,
+            box0: inner,
+            box1: outer,
+            tipX,
+            tipY
+          });
+
+          y = cornerTop + TILE_LONG * 0.75;
+          direction = -direction;
+          x = direction > 0 ? cornerLeft + TILE_SHORT : cornerLeft;
+          count = 1;
+          lastDouble = false;
+        }
+      });
+      return placed;
+    }
+
+    function renderBoardChain() {
+      const shadowsLayer = document.getElementById('shadows-layer');
+      const tilesLayer = document.getElementById('tiles-layer');
+      const targetsLayer = document.getElementById('targets-layer');
+      shadowsLayer.innerHTML = '';
+      tilesLayer.innerHTML = '';
+      targetsLayer.innerHTML = '';
+
+      if (!centerItem) {
+        tilesLayer.innerHTML = `
+          <div class="absolute inset-0 flex items-center justify-center text-emerald-200/40 text-sm font-mono">
+            Esperando la apertura oficial de <b class="text-amber-400 ml-1.5">${PLAYER_NAMES[salidorIndex]}</b>...
+          </div>
+        `;
+        return;
+      }
+
+      const centerTile = centerItem.tile;
+      const centerVertical = centerItem.isDouble;
+      const centerW = centerVertical ? TILE_SHORT : TILE_LONG;
+      const centerH = centerVertical ? TILE_LONG : TILE_SHORT;
+
+      const centerPlaced = {
+        tile: centerTile,
+        playedBy: centerItem.playedBy,
+        playOrder: centerItem.playOrder,
+        left: -centerW / 2,
+        top: -centerH / 2,
+        w: centerW,
+        h: centerH,
+        vertical: centerVertical,
+        box0: centerTile[0],
+        box1: centerTile[1],
+        tipX: -centerW / 2,
+        tipY: 0
+      };
+
+      const rightPlaced = layoutArm(rightArm, centerW / 2, 0, 1);
+      const leftPlaced = layoutArm(leftArm, -centerW / 2, 0, -1);
+
+      const allTiles = [centerPlaced, ...rightPlaced, ...leftPlaced];
+
+      // Calculate Bounding Box
+      const minX = Math.min(...allTiles.map(t => t.left));
+      const maxX = Math.max(...allTiles.map(t => t.left + t.w));
+      const minY = Math.min(...allTiles.map(t => t.top));
+      const maxY = Math.max(...allTiles.map(t => t.top + t.h));
+
+      const rawW = maxX - minX + 40;
+      const rawH = maxY - minY + 40;
+      const maxViewW = Math.max(460, window.innerWidth - 660);
+      const maxViewH = Math.max(300, window.innerHeight - 300);
+      const scale = Math.min(1, Math.min(maxViewW / rawW, maxViewH / rawH));
+
+      const offsetX = -minX + 20;
+      const offsetY = -minY + 20;
+
+      const boardContainer = document.getElementById('board-container');
+      boardContainer.style.width = `${rawW}px`;
+      boardContainer.style.height = `${rawH}px`;
+      boardContainer.style.transform = `scale(${scale})`;
+      boardContainer.style.transformOrigin = 'center center';
+
+      // 1. Render Contact Shadows Layer
+      allTiles.forEach(t => {
+        const shadow = document.createElement('div');
+        shadow.className = `felt-shadow ${t.vertical ? 'vertical' : 'horizontal'}`;
+        shadow.style.left = `${t.left + offsetX}px`;
+        shadow.style.top = `${t.top + offsetY}px`;
+        shadowsLayer.appendChild(shadow);
+      });
+
+      // 2. Render PBR Dominoes Layer with verified exact pips
+      allTiles.forEach(t => {
+        const tileDiv = document.createElement('div');
+        tileDiv.className = `pbr-domino ${t.vertical ? 'vertical' : 'horizontal'}`;
+        tileDiv.style.left = `${t.left + offsetX}px`;
+        tileDiv.style.top = `${t.top + offsetY}px`;
+
+        const badge = PLAYER_BADGES[t.playedBy];
+        const badgeHtml = badge ? `<div class="tile-badge ${badge.color}">${badge.tag}</div>` : '';
+
+        if (t.vertical) {
+          tileDiv.innerHTML = `
+            ${badgeHtml}
+            <div class="pbr-box">${buildPipsHtml(t.box0, 'vertical')}</div>
+            <div class="pbr-divider-h"><div class="pbr-perno"></div></div>
+            <div class="pbr-box">${buildPipsHtml(t.box1, 'vertical')}</div>
+          `;
+        } else {
+          tileDiv.innerHTML = `
+            ${badgeHtml}
+            <div class="pbr-box">${buildPipsHtml(t.box0, 'horizontal')}</div>
+            <div class="pbr-divider-v"><div class="pbr-perno"></div></div>
+            <div class="pbr-box">${buildPipsHtml(t.box1, 'horizontal')}</div>
+          `;
+        }
+        tilesLayer.appendChild(tileDiv);
+      });
+
+      // 3. Render Target Ghosts (ONLY IF tile genuinely matches both ends)
+      if (pendingChoice && turn === 0 && boardEnds) {
+        const canPlayLeft = pendingChoice.tile[0] === boardEnds[0] || pendingChoice.tile[1] === boardEnds[0];
+        const canPlayRight = pendingChoice.tile[0] === boardEnds[1] || pendingChoice.tile[1] === boardEnds[1];
+
+        if (canPlayLeft) {
+          const leftTip = leftPlaced.length > 0 ? leftPlaced[leftPlaced.length - 1] : centerPlaced;
+          const leftBtn = document.createElement('button');
+          leftBtn.className = 'target-end-btn pointer-events-auto px-4 py-2 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-[0_0_25px_rgba(16,185,129,0.9)] border-2 border-white flex items-center gap-1.5 transition cursor-pointer';
+          leftBtn.style.left = `${(leftTip.tipX !== undefined ? leftTip.tipX : leftTip.left) + offsetX}px`;
+          leftBtn.style.top = `${(leftTip.tipY !== undefined ? leftTip.tipY : leftTip.top + leftTip.h / 2) + offsetY}px`;
+          leftBtn.innerHTML = `← Jugar aquí [${boardEnds[0]}]`;
+          leftBtn.onclick = (e) => {
+            e.stopPropagation();
+            makePlay(0, pendingChoice.tile, 'left');
+          };
+          targetsLayer.appendChild(leftBtn);
+        }
+
+        if (canPlayRight) {
+          const rightTip = rightPlaced.length > 0 ? rightPlaced[rightPlaced.length - 1] : centerPlaced;
+          const rightBtn = document.createElement('button');
+          rightBtn.className = 'target-end-btn pointer-events-auto px-4 py-2 rounded-2xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-black text-xs shadow-[0_0_25px_rgba(6,182,212,0.9)] border-2 border-white flex items-center gap-1.5 transition cursor-pointer';
+          rightBtn.style.left = `${(rightTip.tipX !== undefined ? rightTip.tipX : rightTip.left + rightTip.w) + offsetX}px`;
+          rightBtn.style.top = `${(rightTip.tipY !== undefined ? rightTip.tipY : rightTip.top + rightTip.h / 2) + offsetY}px`;
+          rightBtn.innerHTML = `Jugar aquí [${boardEnds[1]}] →`;
+          rightBtn.onclick = (e) => {
+            e.stopPropagation();
+            makePlay(0, pendingChoice.tile, 'right');
+          };
+          targetsLayer.appendChild(rightBtn);
+        }
+      }
+    }
+
+    // =========================================================================
+    // RENDER PLAYER HAND & OPPONENTS
+    // =========================================================================
+    function renderHands() {
+      // Your Hand (Bottom Rack)
+      const handContainer = document.getElementById('player-hand-rack');
+      handContainer.innerHTML = '';
+      const playableMoves = getPlayableMoves(hands[0], boardEnds);
+
+      hands[0].forEach((tile) => {
+        const matchingMove = playableMoves.find(m => 
+          (m.tile[0] === tile[0] && m.tile[1] === tile[1]) || (m.tile[0] === tile[1] && m.tile[1] === tile[0])
+        );
+        const isPlayable = turn === 0 && !gameOver && !!matchingMove;
+        const isSelected = pendingChoice && (
+          (pendingChoice.tile[0] === tile[0] && pendingChoice.tile[1] === tile[1]) ||
+          (pendingChoice.tile[0] === tile[1] && pendingChoice.tile[1] === tile[0])
+        );
+
+        const tileDiv = document.createElement('div');
+        tileDiv.className = `hand-domino-tile ${isPlayable ? 'playable' : 'disabled'} ${isSelected ? 'ring-4 ring-emerald-400 -translate-y-5' : ''}`;
+        
+        tileDiv.innerHTML = `
+          <div class="pbr-box">${buildPipsHtml(tile[0], 'vertical', true)}</div>
+          <div class="pbr-divider-h"><div class="pbr-perno"></div></div>
+          <div class="pbr-box">${buildPipsHtml(tile[1], 'vertical', true)}</div>
+        `;
+
+        if (isPlayable) {
+          tileDiv.onclick = (e) => {
+            e.stopPropagation();
+            if (!boardEnds) {
+              makePlay(0, tile, 'left');
+              return;
+            }
+            const canLeft = tile[0] === boardEnds[0] || tile[1] === boardEnds[0];
+            const canRight = tile[0] === boardEnds[1] || tile[1] === boardEnds[1];
+
+            if (canLeft && canRight && boardEnds[0] !== boardEnds[1]) {
+              // Genuinely matches BOTH ends: prompt user
+              pendingChoice = { tile };
+              renderAll();
+            } else if (canLeft) {
+              pendingChoice = null;
+              makePlay(0, tile, 'left');
+            } else if (canRight) {
+              pendingChoice = null;
+              makePlay(0, tile, 'right');
+            }
+          };
+        }
+
+        handContainer.appendChild(tileDiv);
+      });
+
+      // Opponents Counts & Tiles
+      document.getElementById('count-player-0').innerText = `(${hands[0].length} fichas)`;
+      document.getElementById('count-player-1').innerText = `(${hands[1].length})`;
+      document.getElementById('count-player-2').innerText = `(${hands[2].length})`;
+      document.getElementById('count-player-3').innerText = `(${hands[3].length})`;
+
+      // Opponent 2 (North)
+      const rack2 = document.getElementById('rack-player-2');
+      rack2.innerHTML = '';
+      for (let i = 0; i < hands[2].length; i++) {
+        rack2.innerHTML += `<div class="opponent-standing-tile"></div>`;
+      }
+
+      // Opponent 3 (West)
+      const rack3 = document.getElementById('rack-player-3');
+      rack3.innerHTML = '';
+      for (let i = 0; i < hands[3].length; i++) {
+        rack3.innerHTML += `<div class="opponent-side-tile"></div>`;
+      }
+
+      // Opponent 1 (East)
+      const rack1 = document.getElementById('rack-player-1');
+      rack1.innerHTML = '';
+      for (let i = 0; i < hands[1].length; i++) {
+        rack1.innerHTML += `<div class="opponent-side-tile"></div>`;
+      }
+
+      // Turn Indicators & Pulse Glow
+      for (let i = 0; i < 4; i++) {
+        const tag = document.getElementById(`turn-tag-${i}`);
+        const badge = document.getElementById(`badge-player-${i}`);
+        if (turn === i && !gameOver) {
+          tag.classList.remove('hidden');
+          badge.classList.add('ring-2', 'ring-amber-400', 'shadow-[0_0_15px_rgba(245,158,11,0.5)]');
+        } else {
+          tag.classList.add('hidden');
+          badge.classList.remove('ring-2', 'ring-amber-400', 'shadow-[0_0_15px_rgba(245,158,11,0.5)]');
+        }
+      }
+    }
+
+    // =========================================================================
+    // RENDER HUDs (TACTICAL COACH & 28-TILE PROBABILITY MATRIX)
+    // =========================================================================
+    function renderHUDs() {
+      const allPlayed = getAllBoardTiles();
+
+      // Scoreboard
+      document.getElementById('score-us').innerText = gameScores[0];
+      document.getElementById('score-them').innerText = gameScores[1];
+
+      // Salida HUD
+      document.getElementById('hud-salidor-name').innerText = `Salidor: ${PLAYER_NAMES[salidorIndex]}`;
+      const mySuits = hands[0].flatMap(t => [t[0], t[1]]);
+      const suitCounts = [0, 0, 0, 0, 0, 0, 0];
+      mySuits.forEach(s => suitCounts[s]++);
+      const maxSuitCount = Math.max(...suitCounts, 0);
+      const salidaPct = Math.min(100, Math.max(25, Math.round((maxSuitCount / 7) * 100)));
+      
+      document.getElementById('hud-salida-val').innerText = `${salidaPct}%`;
+      document.getElementById('hud-salida-rival').innerText = `${100 - salidaPct}%`;
+      document.getElementById('hud-salida-bar').style.width = `${salidaPct}%`;
+      document.getElementById('hud-salida-rival-bar').style.width = `${100 - salidaPct}%`;
+
+      // Partner Signaling HUD
+      const partnerPasses = passedSuits[2] || [];
+      const partnerVal = boardEnds
+        ? (partnerPasses.includes(boardEnds[0]) && partnerPasses.includes(boardEnds[1]) ? 12 :
+           partnerPasses.includes(boardEnds[0]) || partnerPasses.includes(boardEnds[1]) ? 44 : 78)
+        : 50;
+      document.getElementById('hud-partner-val').innerText = `${partnerVal}%`;
+      document.getElementById('hud-partner-bar').style.width = `${partnerVal}%`;
+      document.getElementById('hud-partner-note').innerText = partnerPasses.length > 0 
+        ? `Compañero pasó a: ${partnerPasses.join(', ')}` 
+        : 'Compañero con juego activo y respaldo';
+
+      // Tranca Risk HUD
+      const trancaVal = boardEnds
+        ? Math.min(95, Math.max(12, Math.round((
+            allPlayed.filter(b => b.tile[0] === boardEnds[0] || b.tile[1] === boardEnds[0]).length +
+            allPlayed.filter(b => b.tile[0] === boardEnds[1] || b.tile[1] === boardEnds[1]).length
+          ) / 14 * 100)))
+        : 14;
+      document.getElementById('hud-tranca-val').innerText = `${trancaVal}%`;
+      document.getElementById('hud-tranca-bar').style.width = `${trancaVal}%`;
+      document.getElementById('hud-tranca-note').innerText = boardEnds
+        ? `Puntas abiertas: [${boardEnds[0]} : ${boardEnds[1]}]`
+        : 'Esperando primera ficha';
+
+      // Coach Tactical Advice
+      const adviceEl = document.getElementById('hud-coach-advice');
+      if (gameOver) {
+        adviceEl.innerText = `Mano finalizada. Ganó ${PLAYER_NAMES[gameOver.winner]} con +${gameOver.points} puntos.`;
+      } else if (turn === 0) {
+        const playable = getPlayableMoves(hands[0], boardEnds);
+        if (!boardEnds) {
+          if (handNumber === 1) {
+            adviceEl.innerText = `🎯 Salida obligatoria: Juega el Doble Seis [6:6] para abrir la partida oficial.`;
+          } else {
+            adviceEl.innerText = `🎯 Salida Libre: Abre con tu pinta más repetida para forzar el juego de tu pareja.`;
+          }
+        } else if (playable.length === 0) {
+          adviceEl.innerText = `⚠️ No tienes fichas compatibles con las puntas [${boardEnds[0]}] ni [${boardEnds[1]}]. Debes pasar.`;
+        } else {
+          const best = playable[0].tile;
+          adviceEl.innerText = `💡 Juega [${best[0]}:${best[1]}] para conservar el control de las puntas y descargar fichas pesadas.`;
+        }
+      } else {
+        adviceEl.innerText = `Turno de ${PLAYER_NAMES[turn]}. Observa si juega rápido o castiga alguna punta.`;
+      }
+
+      // 28-Tile Probability Matrix
+      const fullSet = generateFullSet();
+      const playedSet = new Set(allPlayed.map(b => `${Math.min(b.tile[0], b.tile[1])}-${Math.max(b.tile[0], b.tile[1])}`));
+      const handSet = new Set(hands[0].map(t => `${Math.min(t[0], t[1])}-${Math.max(t[0], t[1])}`));
+
+      const matGrid = document.getElementById('tile-matrix-grid');
+      matGrid.innerHTML = '';
+
+      fullSet.forEach(([a, b]) => {
+        const key = `${a}-${b}`;
+        const cell = document.createElement('div');
+        cell.className = 'mat-cell';
+        cell.innerText = `${a}:${b}`;
+
+        if (handSet.has(key)) {
+          cell.classList.add('mat-inhand');
+          cell.title = `En tu mano: [${a}:${b}]`;
+        } else if (playedSet.has(key)) {
+          cell.classList.add('mat-played');
+          cell.title = `Jugada en mesa: [${a}:${b}]`;
+        } else {
+          cell.classList.add('mat-unplayed');
+          cell.title = `Oculta en rival/compañero: [${a}:${b}]`;
+        }
+        matGrid.appendChild(cell);
+      });
+
+      // Card counting breakdown
+      const playedCount = allPlayed.length;
+      const unplayedCount = 28 - playedCount - hands[0].length;
+      document.getElementById('mat-played-count').innerText = `${playedCount} / 28`;
+      document.getElementById('mat-unplayed-count').innerText = `${unplayedCount}`;
+      const progress = Math.round((playedCount / 28) * 100);
+      document.getElementById('mat-progress-text').innerText = `${progress}%`;
+      document.getElementById('mat-progress-bar').style.width = `${progress}%`;
+
+      // Live suits count
+      const suitRow = document.getElementById('suit-counts-row');
+      suitRow.innerHTML = '';
+      for (let s = 0; s <= 6; s++) {
+        // Total of suit s played
+        const playedOfS = allPlayed.reduce((cnt, b) => cnt + (b.tile[0] === s ? 1 : 0) + (b.tile[1] === s ? 1 : 0), 0);
+        const aliveOfS = 7 - playedOfS;
+        const color = aliveOfS <= 1 ? 'text-rose-400' : aliveOfS <= 3 ? 'text-amber-400' : 'text-emerald-400';
+        suitRow.innerHTML += `
+          <div class="p-1 rounded bg-slate-900 border border-white/5">
+            <div class="text-[9px] text-zinc-500">${s}s</div>
+            <div class="${color}">${aliveOfS}</div>
+          </div>
+        `;
+      }
+    }
+
+    function renderAll() {
+      renderBoardChain();
+      renderHands();
+      renderHUDs();
+    }
+
+    // Initialize on window load
+    window.addEventListener('DOMContentLoaded', () => {
+      startNewRound(1);
+    });
+
+    // Deselect tile choice when clicking outside
+    document.addEventListener('click', (e) => {
+      if (pendingChoice && !e.target.closest('.target-end-btn') && !e.target.closest('.hand-domino-tile')) {
+        pendingChoice = null;
+        renderAll();
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      renderBoardChain();
+    });
+  </script>
+
+</body>
+</html>
