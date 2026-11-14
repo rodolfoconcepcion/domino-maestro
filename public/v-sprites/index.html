@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dominó Maestro - Opción 1: Sprites PBR Pre-renderizados (Estilo Domino Go)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: #020704;
+      color: #ffffff;
+      user-select: none;
+    }
+
+    /* CASINO TOURNAMENT TABLE BACKGROUND (2.5D PERSPECTIVE FELT) */
+    .casino-table-viewport {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(ellipse at 50% 45%, #18422d 0%, #0f2c1e 40%, #08170f 70%, #020604 100%);
+    }
+
+    .casino-felt-mat {
+      position: absolute;
+      width: 96vw;
+      height: 92vh;
+      border-radius: 40px;
+      background: radial-gradient(ellipse at 50% 48%, #1b4932 0%, #113423 45%, #0a2116 75%, #040e09 100%);
+      box-shadow: 
+        inset 0 0 120px rgba(0, 0, 0, 0.9),
+        inset 0 2px 4px rgba(255, 255, 255, 0.1),
+        0 30px 80px rgba(0, 0, 0, 0.95),
+        0 0 0 1px rgba(255, 255, 255, 0.05);
+      overflow: hidden;
+    }
+
+    /* Micro felt fibers */
+    .casino-felt-mat::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+      background-size: 6px 6px;
+      pointer-events: none;
+    }
+
+    /* Soft Overhead Table Spotlight */
+    .table-spotlight {
+      position: absolute;
+      width: 75vw;
+      height: 65vh;
+      top: 15%;
+      left: 12.5%;
+      border-radius: 50%;
+      background: radial-gradient(circle at 50% 50%, rgba(255, 250, 230, 0.12) 0%, rgba(255, 250, 230, 0.04) 40%, transparent 70%);
+      pointer-events: none;
+    }
+
+    /* HUD GLASS PANELS */
+    .hud-glass {
+      background: rgba(12, 22, 17, 0.75);
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 18px;
+      box-shadow: 
+        0 24px 60px rgba(0, 0, 0, 0.8),
+        inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    }
+    .hud-subcard {
+      background: rgba(5, 12, 9, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+    }
+
+    /* =========================================================================
+       PRE-RENDERED PBR SPRITE TILES (DOMINO GO SPECIFICATION)
+       ========================================================================= */
+    .pbr-domino-sprite {
+      position: absolute;
+      border-radius: 9px;
+      background: linear-gradient(168deg, #ffffff 0%, #faf6ec 25%, #f2e9d7 70%, #dfceb0 100%);
+      /* 3D Chamfered Bevel + Thick Physical Edge + Ambient Contact Shadow */
+      box-shadow: 
+        /* Inside rim specular highlights */
+        inset 0 1.5px 1px rgba(255, 255, 255, 1),
+        inset 0 -1.5px 1.5px rgba(160, 135, 95, 0.45),
+        inset 1.5px 0 1px rgba(255, 255, 255, 0.85),
+        inset -1.5px 0 1.5px rgba(160, 135, 95, 0.45),
+        /* Physical tile side bevel extrusion */
+        0 1px 0 #ded2be,
+        0 2.5px 0 #cfbeaa,
+        0 4px 0 #beac94,
+        0 5.5px 0 #ab977e,
+        0 6.5px 1px rgba(0, 0, 0, 0.35),
+        /* Soft PBR contact drop shadow onto felt */
+        0 14px 22px -2px rgba(0, 0, 0, 0.8),
+        0 5px 8px rgba(0, 0, 0, 0.45);
+      display: flex;
+      user-select: none;
+      cursor: pointer;
+      transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s ease;
+    }
+
+    .pbr-domino-sprite.horizontal {
+      width: 104px;
+      height: 52px;
+      flex-direction: row;
+    }
+
+    .pbr-domino-sprite.vertical {
+      width: 52px;
+      height: 104px;
+      flex-direction: column;
+    }
+
+    .pbr-domino-sprite:hover {
+      transform: translateY(-6px) scale(1.025);
+      box-shadow: 
+        inset 0 1.5px 1px #ffffff,
+        0 2px 0 #ded2be,
+        0 4px 0 #cfbeaa,
+        0 7px 0 #beac94,
+        0 22px 34px -4px rgba(0, 0, 0, 0.9),
+        0 0 24px rgba(52, 211, 153, 0.4);
+    }
+
+    /* CENTER DIVIDER LINE (DEEP CARVED GROOVE) */
+    .pbr-divider-h {
+      width: 100%;
+      height: 2.5px;
+      background: linear-gradient(90deg, #aa9573 0%, #614f31 50%, #aa9573 100%);
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
+      position: relative;
+    }
+    .pbr-divider-v {
+      width: 2.5px;
+      height: 100%;
+      background: linear-gradient(180deg, #aa9573 0%, #614f31 50%, #aa9573 100%);
+      box-shadow: 1px 0 0 rgba(255, 255, 255, 0.8);
+      position: relative;
+    }
+
+    /* POLISHED METALLIC BRASS SPINNER RIVET ("PERNO") */
+    .pbr-brass-perno {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #ffffff 0%, #ffe066 30%, #c4951b 70%, #594008 100%);
+      box-shadow: 
+        0 1.5px 2px rgba(0, 0, 0, 0.9),
+        inset 0 1px 1px rgba(255, 255, 255, 0.95),
+        0 0 1px rgba(0, 0, 0, 0.8);
+      z-index: 10;
+    }
+
+    /* DRILLED CONCAVE PIPS (DEEP BLACK INDENTATIONS WITH SPECULAR LIGHT CATCH) */
+    .pbr-pip {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #2a2a2a 0%, #111111 55%, #000000 100%);
+      box-shadow: 
+        inset 0 1.5px 2px rgba(0, 0, 0, 0.95),
+        0 1px 1px rgba(255, 255, 255, 0.65);
+    }
+
+    .pbr-half {
+      width: 100%;
+      height: 100%;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      place-items: center;
+      padding: 4px;
+    }
+
+    /* =========================================================================
+       PHYSICAL PLAYER RACK TRAY (BOTTOM)
+       ========================================================================= */
+    .pbr-rack-tray {
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 14px 28px 18px;
+      border-radius: 26px;
+      background: linear-gradient(180deg, #18281f 0%, #0e1712 50%, #050a07 100%);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 
+        0 28px 60px rgba(0, 0, 0, 0.95),
+        inset 0 2px 2px rgba(255, 255, 255, 0.22),
+        inset 0 -6px 12px rgba(0, 0, 0, 0.9);
+      z-index: 40;
+    }
+
+    .pbr-rack-tray::before {
+      content: '';
+      position: absolute;
+      inset: 6px 14px 10px;
+      border-radius: 18px;
+      background: #050b07;
+      box-shadow: inset 0 8px 16px rgba(0, 0, 0, 0.95), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      z-index: 1;
+    }
+
+    .pbr-hand-tile {
+      position: relative;
+      z-index: 2;
+      width: 62px;
+      height: 124px;
+      border-radius: 11px;
+      background: linear-gradient(168deg, #ffffff 0%, #faf6eb 25%, #f2e9d7 70%, #dfceb0 100%);
+      box-shadow: 
+        inset 0 2px 1px #ffffff,
+        inset 0 -2px 1.5px rgba(160, 135, 95, 0.45),
+        inset 1.5px 0 1px rgba(255, 255, 255, 0.85),
+        inset -1.5px 0 1.5px rgba(160, 135, 95, 0.45),
+        0 1px 0 #ded2be,
+        0 3px 0 #cfbeaa,
+        0 5.5px 0 #beac94,
+        0 12px 24px rgba(0, 0, 0, 0.9);
+      display: flex;
+      flex-direction: column;
+      cursor: pointer;
+      transition: all 0.24s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .pbr-hand-tile:hover {
+      transform: translateY(-18px) scale(1.06);
+      box-shadow: 
+        inset 0 2px 1px #ffffff,
+        0 2px 0 #ded2be,
+        0 5px 0 #cfbeaa,
+        0 8px 0 #beac94,
+        0 30px 45px -4px rgba(0, 0, 0, 0.95),
+        0 0 26px rgba(52, 211, 153, 0.5);
+    }
+
+    /* OPPONENT STANDING TILES */
+    .pbr-standing-tile {
+      width: 44px;
+      height: 28px;
+      border-radius: 5px;
+      background: linear-gradient(180deg, #ffffff 0%, #faf5ea 40%, #e3d3b7 100%);
+      box-shadow: 
+        inset 0 1.5px 1px #ffffff,
+        inset 0 -1.5px 1px rgba(160, 135, 95, 0.4),
+        0 1px 0 #ded2be,
+        0 3px 0 #beac94,
+        0 10px 18px rgba(0, 0, 0, 0.85);
+      position: relative;
+    }
+    .pbr-standing-tile::before {
+      content: '';
+      position: absolute;
+      top: -5px;
+      left: 0;
+      right: 0;
+      height: 5px;
+      border-radius: 4px 4px 0 0;
+      background: linear-gradient(90deg, #ffffff 0%, #faf5eb 50%, #eedfc4 100%);
+      box-shadow: inset 0 1px 0 #ffffff;
+    }
+
+    .pbr-side-tile {
+      width: 26px;
+      height: 44px;
+      border-radius: 5px;
+      background: linear-gradient(160deg, #ffffff 0%, #faf5eb 50%, #e0ceb1 100%);
+      box-shadow: 
+        inset 0 1.5px 1px #ffffff,
+        inset 0 -1.5px 1px rgba(160, 135, 95, 0.4),
+        0 1px 0 #ded2be,
+        0 3px 0 #beac94,
+        0 10px 18px rgba(0, 0, 0, 0.85);
+    }
+
+    /* MATRIX CELLS */
+    .mat-cell {
+      height: 22px;
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .mat-emerald { background: #10b981; color: #032b18; }
+    .mat-amber { background: #f59e0b; color: #451a03; }
+  </style>
+</head>
+<body>
+
+  <!-- 2.5D TOURNAMENT CASINO TABLE -->
+  <div class="casino-table-viewport">
+    <div class="casino-felt-mat">
+      <div class="table-spotlight"></div>
+
+      <!-- PLAYED DOMINOES CHAIN (PRE-RENDERED PBR SPRITES) -->
+      <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div class="relative w-[640px] h-[380px] pointer-events-auto">
+
+          <!-- 1. [1 | 0] Horizontal at left -->
+          <div class="pbr-domino-sprite horizontal" style="left: 30px; top: 150px;">
+            <div class="pbr-half">
+              <div></div><div></div><div></div>
+              <div></div><div class="pbr-pip"></div><div></div>
+              <div></div><div></div><div></div>
+            </div>
+            <div class="pbr-divider-v"><div class="pbr-brass-perno"></div></div>
+            <div class="pbr-half"></div>
+          </div>
+
+          <!-- 2. [4 | 1] Horizontal touching [1 | 0] -->
+          <div class="pbr-domino-sprite horizontal" style="left: 136px; top: 150px;">
+            <div class="pbr-half">
+              <div></div><div></div><div></div>
+              <div></div><div class="pbr-pip"></div><div></div>
+              <div></div><div></div><div></div>
+            </div>
+            <div class="pbr-divider-v"><div class="pbr-brass-perno"></div></div>
+            <div class="pbr-half">
+              <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+              <div></div><div></div><div></div>
+              <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+            </div>
+          </div>
+
+          <!-- 3. [4 | 4] Double-Four Spinner (Vertical Cross) -->
+          <div class="pbr-domino-sprite vertical" style="left: 242px; top: 124px;">
+            <div class="pbr-half">
+              <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+              <div></div><div></div><div></div>
+              <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+            </div>
+            <div class="pbr-divider-h"><div class="pbr-brass-perno"></div></div>
+            <div class="pbr-half">
+              <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+              <div></div><div></div><div></div>
+              <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+            </div>
+          </div>
+
+          <!-- 4. [4 | 2] Horizontal connecting right -->
+          <div class="pbr-domino-sprite horizontal" style="left: 296px; top: 150px;">
+            <div class="pbr-half">
+              <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+              <div></div><div></div><div></div>
+              <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+            </div>
+            <div class="pbr-divider-v"><div class="pbr-brass-perno"></div></div>
+            <div class="pbr-half">
+              <div class="pbr-pip"></div><div></div><div></div>
+              <div></div><div></div><div></div>
+              <div></div><div></div><div class="pbr-pip"></div>
+            </div>
+          </div>
+
+          <!-- 5. [2 | 2] Double-Two Spinner (Vertical Cross) -->
+          <div class="pbr-domino-sprite vertical" style="left: 402px; top: 124px;">
+            <div class="pbr-half">
+              <div class="pbr-pip"></div><div></div><div></div>
+              <div></div><div></div><div></div>
+              <div></div><div></div><div class="pbr-pip"></div>
+            </div>
+            <div class="pbr-divider-h"><div class="pbr-brass-perno"></div></div>
+            <div class="pbr-half">
+              <div class="pbr-pip"></div><div></div><div></div>
+              <div></div><div></div><div></div>
+              <div></div><div></div><div class="pbr-pip"></div>
+            </div>
+          </div>
+
+          <!-- 6. [2 | 5] Vertical Branch heading North -->
+          <div class="pbr-domino-sprite vertical" style="left: 402px; top: 18px;">
+            <div class="pbr-half">
+              <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+              <div></div><div class="pbr-pip"></div><div></div>
+              <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+            </div>
+            <div class="pbr-divider-h"><div class="pbr-brass-perno"></div></div>
+            <div class="pbr-half">
+              <div class="pbr-pip"></div><div></div><div></div>
+              <div></div><div></div><div></div>
+              <div></div><div></div><div class="pbr-pip"></div>
+            </div>
+          </div>
+
+          <!-- 7. [5 | 6] Horizontal heading West from top -->
+          <div class="pbr-domino-sprite horizontal" style="left: 296px; top: 18px;">
+            <div class="pbr-half">
+              <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+              <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+              <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+            </div>
+            <div class="pbr-divider-v"><div class="pbr-brass-perno"></div></div>
+            <div class="pbr-half">
+              <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+              <div></div><div class="pbr-pip"></div><div></div>
+              <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+            </div>
+          </div>
+
+          <!-- 8. [6 | 6] Double-Six Spinner (Vertical Cross) -->
+          <div class="pbr-domino-sprite vertical" style="left: 242px; top: -8px;">
+            <div class="pbr-half">
+              <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+              <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+              <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+            </div>
+            <div class="pbr-divider-h"><div class="pbr-brass-perno"></div></div>
+            <div class="pbr-half">
+              <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+              <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+              <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+            </div>
+          </div>
+
+          <!-- 9. [6 | 3] Horizontal continuing West -->
+          <div class="pbr-domino-sprite horizontal" style="left: 136px; top: 18px;">
+            <div class="pbr-half">
+              <div class="pbr-pip"></div><div></div><div></div>
+              <div></div><div class="pbr-pip"></div><div></div>
+              <div></div><div></div><div class="pbr-pip"></div>
+            </div>
+            <div class="pbr-divider-v"><div class="pbr-brass-perno"></div></div>
+            <div class="pbr-half">
+              <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+              <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+              <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       TOP APPLICATION BAR
+       ========================================================================= -->
+  <header class="fixed top-0 left-0 right-0 h-14 z-50 flex items-center justify-between px-6 bg-[#040d08]/85 backdrop-blur-md border-b border-white/10">
+    <div class="flex items-center space-x-3">
+      <button class="text-zinc-400 hover:text-white transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+      </button>
+      <div class="flex items-center space-x-2">
+        <span class="font-extrabold tracking-wider text-sm sm:text-base text-white">DOMINÓ MAESTRO</span>
+        <span class="text-sm">🇩🇴</span>
+        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-400">PBR SPRITES</span>
+      </div>
+    </div>
+
+    <!-- Match Scoreboard -->
+    <div class="flex items-center space-x-3 px-4 py-1.5 rounded-2xl bg-black/55 border border-white/10 backdrop-blur-md shadow-xl">
+      <div class="flex items-center space-x-1.5">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span class="text-xs font-black tracking-widest text-emerald-400">LIVE</span>
+      </div>
+      <div class="h-3.5 w-px bg-white/20"></div>
+      <div class="text-center">
+        <div class="text-[9px] uppercase font-bold tracking-widest text-zinc-400">Live tournament score</div>
+        <div class="text-lg font-black text-white font-mono tracking-wider leading-none">154 <span class="text-zinc-500">-</span> 120</div>
+      </div>
+      <div class="h-3.5 w-px bg-white/20"></div>
+      <div class="text-center">
+        <div class="text-[9px] uppercase font-bold tracking-widest text-zinc-400">Round</div>
+        <div class="text-sm font-bold text-white font-mono leading-none">00:00:00</div>
+      </div>
+    </div>
+
+    <!-- Actions & Profile -->
+    <div class="flex items-center space-x-3 text-zinc-400">
+      <button class="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition">
+        <span class="text-xs font-bold">?</span>
+      </button>
+      <button class="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition relative">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+        <span class="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-400"></span>
+      </button>
+      <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 p-[1px] cursor-pointer">
+        <div class="w-full h-full rounded-full bg-zinc-900 flex items-center justify-center">
+          <span class="text-xs font-bold text-emerald-400">RC</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- =========================================================================
+       LEFT HUD: TACTICAL COACH (DOMINICAN MASTER DOCTRINE)
+       ========================================================================= -->
+  <aside class="fixed left-6 top-20 bottom-8 w-72 hud-glass p-5 flex flex-col justify-between z-30">
+    <div>
+      <div class="flex items-center justify-between mb-1">
+        <h2 class="text-base font-extrabold text-white">Tactical Coach</h2>
+        <span class="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-[10px] font-extrabold text-emerald-400 tracking-wider">LIVE</span>
+      </div>
+      <p class="text-xs text-zinc-400 mb-5">Dominican domino strategy</p>
+
+      <!-- La Salida Strategy -->
+      <div class="hud-subcard p-3.5 mb-3.5">
+        <div class="text-xs font-bold text-zinc-200 mb-0.5">La Salida</div>
+        <div class="text-[10px] text-zinc-400 mb-2">Dominican domino strategy</div>
+        <div class="flex items-center justify-between text-[11px] font-bold font-mono mb-1.5">
+          <span class="text-emerald-400">39%</span>
+          <span class="text-amber-400">38%</span>
+        </div>
+        <div class="h-2 w-full bg-zinc-800 rounded-full overflow-hidden flex mb-2">
+          <div class="h-full bg-emerald-400 rounded-l-full" style="width: 39%;"></div>
+          <div class="h-full bg-amber-400 rounded-r-full" style="width: 38%;"></div>
+        </div>
+        <div class="flex justify-between text-[9px] text-zinc-500 font-mono px-0.5">
+          <span>1</span><span>3</span><span>5</span><span>10</span><span>5</span>
+        </div>
+      </div>
+
+      <!-- Partner Signaling -->
+      <div class="hud-subcard p-3.5 mb-3.5">
+        <div class="flex items-center justify-between text-xs font-bold mb-2">
+          <span class="text-zinc-200">Partner Signaling</span>
+          <span class="text-emerald-400 font-mono">57%</span>
+        </div>
+        <div class="h-2 w-full bg-zinc-800 rounded-full overflow-hidden">
+          <div class="h-full bg-emerald-400 rounded-full" style="width: 57%;"></div>
+        </div>
+      </div>
+
+      <!-- Tranca Risk -->
+      <div class="hud-subcard p-3.5">
+        <div class="flex items-center justify-between text-xs font-bold mb-2">
+          <span class="text-zinc-200">Tranca Risk</span>
+          <span class="text-red-400 font-mono">12%</span>
+        </div>
+        <div class="h-2 w-full bg-zinc-800 rounded-full overflow-hidden">
+          <div class="h-full bg-red-500 rounded-full" style="width: 12%;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Match Hard Action Button -->
+    <button class="w-full py-2.5 rounded-xl bg-zinc-800/80 hover:bg-zinc-700/80 border border-white/10 text-xs font-bold text-zinc-200 transition shadow-lg shadow-black/40">
+      Match hard
+    </button>
+  </aside>
+
+  <!-- =========================================================================
+       RIGHT HUD: 28-TILE PROBABILITY MATRIX
+       ========================================================================= -->
+  <aside class="fixed right-6 top-20 bottom-8 w-72 hud-glass p-5 flex flex-col justify-between z-30">
+    <div>
+      <h2 class="text-base font-extrabold text-white mb-0.5">28-Tile Probability Matrix</h2>
+      <p class="text-xs text-zinc-400 mb-4">Tracker in lowest 28-Tile</p>
+
+      <!-- Emerald / Amber Toggles -->
+      <div class="grid grid-cols-2 gap-2 mb-4">
+        <button id="btn-emerald" class="py-1.5 rounded-lg bg-emerald-950/70 border border-emerald-500/40 text-emerald-400 text-xs font-bold">
+          Emerald
+        </button>
+        <button id="btn-amber" class="py-1.5 rounded-lg bg-amber-950/40 border border-amber-500/30 text-amber-400 text-xs font-bold">
+          Amber
+        </button>
+      </div>
+
+      <!-- 6x6 Matrix Grid matching the Mockup -->
+      <div class="grid grid-cols-6 gap-1 mb-5">
+        <div class="mat-cell mat-emerald">3</div><div class="mat-cell mat-emerald">5</div><div class="mat-cell mat-emerald">5</div><div class="mat-cell mat-amber">3</div><div class="mat-cell mat-amber">5</div><div class="mat-cell mat-amber">8</div>
+        <div class="mat-cell mat-emerald">3</div><div class="mat-cell mat-emerald">5</div><div class="mat-cell mat-emerald">5</div><div class="mat-cell mat-amber">8</div><div class="mat-cell mat-amber">10</div><div class="mat-cell mat-amber">8</div>
+        <div class="mat-cell mat-emerald">1</div><div class="mat-cell mat-emerald">5</div><div class="mat-cell mat-emerald">5</div><div class="mat-cell mat-amber">8</div><div class="mat-cell mat-amber">4</div><div class="mat-cell mat-amber">4</div>
+        <div class="mat-cell mat-emerald">1</div><div class="mat-cell mat-emerald">3</div><div class="mat-cell mat-emerald">5</div><div class="mat-cell mat-amber">4</div><div class="mat-cell mat-amber">3</div><div class="mat-cell mat-amber">4</div>
+        <div class="mat-cell mat-emerald">1</div><div class="mat-cell mat-emerald">2</div><div class="mat-cell mat-emerald">3</div><div class="mat-cell mat-amber">1</div><div class="mat-cell mat-amber">2</div><div class="mat-cell mat-amber">4</div>
+        <div class="mat-cell mat-emerald">1</div><div class="mat-cell mat-emerald">2</div><div class="mat-cell mat-emerald">3</div><div class="mat-cell mat-amber">1</div><div class="mat-cell mat-amber">2</div><div class="mat-cell mat-amber">2</div>
+      </div>
+
+      <!-- Live Counters -->
+      <div class="space-y-2.5 text-xs">
+        <div class="flex items-center justify-between text-zinc-300">
+          <span>Card Counting</span>
+          <span class="font-bold font-mono text-white">14</span>
+        </div>
+        <div class="flex items-center justify-between text-zinc-300">
+          <span>Neon emerald</span>
+          <span class="font-bold font-mono text-emerald-400">30</span>
+        </div>
+        <div>
+          <div class="flex items-center justify-between text-zinc-300 mb-1">
+            <span>Card counting</span>
+            <span class="font-bold font-mono text-amber-400">2/6</span>
+          </div>
+          <div class="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden">
+            <div class="h-full bg-amber-400 rounded-full" style="width: 33%;"></div>
+          </div>
+        </div>
+        <div class="flex items-center justify-between text-zinc-300">
+          <span>Card counting</span>
+          <span class="font-bold font-mono text-zinc-400">0</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- =========================================================================
+       OPPONENT TILES (TOP, LEFT, RIGHT)
+       ========================================================================= -->
+  <!-- Top Partner (7 standing upright) -->
+  <div class="fixed top-20 left-1/2 -translate-x-1/2 flex gap-1.5 z-20">
+    <div class="pbr-standing-tile"></div>
+    <div class="pbr-standing-tile"></div>
+    <div class="pbr-standing-tile"></div>
+    <div class="pbr-standing-tile"></div>
+    <div class="pbr-standing-tile"></div>
+    <div class="pbr-standing-tile"></div>
+    <div class="pbr-standing-tile"></div>
+  </div>
+
+  <!-- Left Opponent (7 standing tiles angled inward) -->
+  <div class="fixed left-80 top-1/2 -translate-y-1/2 flex flex-col gap-1.5 z-20 rotate-6">
+    <div class="pbr-side-tile"></div>
+    <div class="pbr-side-tile"></div>
+    <div class="pbr-side-tile"></div>
+    <div class="pbr-side-tile"></div>
+    <div class="pbr-side-tile"></div>
+    <div class="pbr-side-tile"></div>
+    <div class="pbr-side-tile"></div>
+  </div>
+
+  <!-- Right Opponent (7 standing tiles angled inward) -->
+  <div class="fixed right-80 top-1/2 -translate-y-1/2 flex flex-col gap-1.5 z-20 -rotate-6">
+    <div class="pbr-side-tile"></div>
+    <div class="pbr-side-tile"></div>
+    <div class="pbr-side-tile"></div>
+    <div class="pbr-side-tile"></div>
+    <div class="pbr-side-tile"></div>
+    <div class="pbr-side-tile"></div>
+    <div class="pbr-side-tile"></div>
+  </div>
+
+  <!-- =========================================================================
+       PHYSICAL PLAYER RACK TRAY (BOTTOM 7 TILES) - FULLY INTERACTIVE
+       ========================================================================= -->
+  <div class="pbr-rack-tray">
+    
+    <!-- Tile 1: [1 | 4] -->
+    <div class="pbr-hand-tile">
+      <div class="pbr-half">
+        <div></div><div></div><div></div>
+        <div></div><div class="pbr-pip"></div><div></div>
+        <div></div><div></div><div></div>
+      </div>
+      <div class="pbr-divider-h"><div class="pbr-brass-perno"></div></div>
+      <div class="pbr-half">
+        <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+        <div></div><div></div><div></div>
+        <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+      </div>
+    </div>
+
+    <!-- Tile 2: [1 | 5] -->
+    <div class="pbr-hand-tile">
+      <div class="pbr-half">
+        <div></div><div></div><div></div>
+        <div></div><div class="pbr-pip"></div><div></div>
+        <div></div><div></div><div></div>
+      </div>
+      <div class="pbr-divider-h"><div class="pbr-brass-perno"></div></div>
+      <div class="pbr-half">
+        <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+        <div></div><div class="pbr-pip"></div><div></div>
+        <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+      </div>
+    </div>
+
+    <!-- Tile 3: [2 | 5] -->
+    <div class="pbr-hand-tile">
+      <div class="pbr-half">
+        <div class="pbr-pip"></div><div></div><div></div>
+        <div></div><div></div><div></div>
+        <div></div><div></div><div class="pbr-pip"></div>
+      </div>
+      <div class="pbr-divider-h"><div class="pbr-brass-perno"></div></div>
+      <div class="pbr-half">
+        <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+        <div></div><div class="pbr-pip"></div><div></div>
+        <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+      </div>
+    </div>
+
+    <!-- Tile 4: [3 | 5] -->
+    <div class="pbr-hand-tile">
+      <div class="pbr-half">
+        <div class="pbr-pip"></div><div></div><div></div>
+        <div></div><div class="pbr-pip"></div><div></div>
+        <div></div><div></div><div class="pbr-pip"></div>
+      </div>
+      <div class="pbr-divider-h"><div class="pbr-brass-perno"></div></div>
+      <div class="pbr-half">
+        <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+        <div></div><div class="pbr-pip"></div><div></div>
+        <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+      </div>
+    </div>
+
+    <!-- Tile 5: [4 | 5] -->
+    <div class="pbr-hand-tile">
+      <div class="pbr-half">
+        <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+        <div></div><div></div><div></div>
+        <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+      </div>
+      <div class="pbr-divider-h"><div class="pbr-brass-perno"></div></div>
+      <div class="pbr-half">
+        <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+        <div></div><div class="pbr-pip"></div><div></div>
+        <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+      </div>
+    </div>
+
+    <!-- Tile 6: [5 | 5] -->
+    <div class="pbr-hand-tile">
+      <div class="pbr-half">
+        <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+        <div></div><div class="pbr-pip"></div><div></div>
+        <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+      </div>
+      <div class="pbr-divider-h"><div class="pbr-brass-perno"></div></div>
+      <div class="pbr-half">
+        <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+        <div></div><div class="pbr-pip"></div><div></div>
+        <div class="pbr-pip"></div><div></div><div class="pbr-pip"></div>
+      </div>
+    </div>
+
+    <!-- Tile 7: [0 | 0] Blank with central brass spinner -->
+    <div class="pbr-hand-tile">
+      <div class="pbr-half"></div>
+      <div class="pbr-divider-h"><div class="pbr-brass-perno"></div></div>
+      <div class="pbr-half"></div>
+    </div>
+
+  </div>
+
+  <script>
+    // Interactive Hand Tile Selection
+    const handTiles = document.querySelectorAll('.pbr-hand-tile');
+    handTiles.forEach((tile) => {
+      tile.addEventListener('click', () => {
+        const isSelected = tile.classList.contains('ring-2');
+        handTiles.forEach(t => t.classList.remove('ring-2', 'ring-emerald-400', '-translate-y-4'));
+        if (!isSelected) {
+          tile.classList.add('ring-2', 'ring-emerald-400', '-translate-y-4');
+        }
+      });
+    });
+
+    // Emerald / Amber Matrix Toggle
+    const emeraldBtn = document.getElementById('btn-emerald');
+    const amberBtn = document.getElementById('btn-amber');
+    if (emeraldBtn && amberBtn) {
+      emeraldBtn.addEventListener('click', () => {
+        emeraldBtn.className = "py-1.5 rounded-lg bg-emerald-950/70 border border-emerald-500/40 text-emerald-400 text-xs font-bold transition";
+        amberBtn.className = "py-1.5 rounded-lg bg-transparent border border-white/10 text-zinc-400 text-xs font-bold transition hover:text-white";
+      });
+      amberBtn.addEventListener('click', () => {
+        amberBtn.className = "py-1.5 rounded-lg bg-amber-950/70 border border-amber-500/40 text-amber-400 text-xs font-bold transition";
+        emeraldBtn.className = "py-1.5 rounded-lg bg-transparent border border-white/10 text-zinc-400 text-xs font-bold transition hover:text-white";
+      });
+    }
+  </script>
+
+</body>
+</html>
