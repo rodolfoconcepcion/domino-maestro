@@ -1,12 +1,26 @@
 import { useState, useEffect } from 'react';
 import { TacticalAcademy } from './components/TacticalAcademy';
-import { MatchSimulator } from './components/MatchSimulator';
+import { MatchSimulator, MatchTelemetry } from './components/MatchSimulator';
 import { TileTracker } from './components/TileTracker';
 import { PrinciplesLibrary } from './components/PrinciplesLibrary';
-import { Brain, Play, BarChart2, BookOpen, Layers, Sun, Moon } from 'lucide-react';
+import { useLanguage } from './i18n/LanguageContext';
+import { Brain, Play, BarChart2, BookOpen, Layers, Sun, Moon, Languages } from 'lucide-react';
+
+const formatClock = (seconds: number): string => {
+  const mins = String(Math.floor(seconds / 60)).padStart(2, '0');
+  const secs = String(seconds % 60).padStart(2, '0');
+  return `${mins}:${secs}`;
+};
 
 export function App() {
+  const { lang, toggleLang, tr } = useLanguage();
   const [activeTab, setActiveTab] = useState<'academy' | 'simulator' | 'tracker' | 'library'>('simulator');
+  const [telemetry, setTelemetry] = useState<MatchTelemetry>({
+    scores: [0, 0],
+    targetScore: 200,
+    handNumber: 1,
+    roundSeconds: 0,
+  });
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     if (typeof window !== 'undefined') {
       return (localStorage.getItem('domino-theme') as 'dark' | 'light') || 'dark';
@@ -49,7 +63,7 @@ export function App() {
               <svg
                 viewBox="0 0 30 20"
                 className="w-4 h-2.5 rounded-[2px] shadow-sm inline-block shrink-0 border border-white/20"
-                aria-label="Bandera de la República Dominicana"
+                aria-label={tr('Bandera de la República Dominicana', 'Flag of the Dominican Republic')}
               >
                 <rect width="30" height="20" fill="#ffffff" />
                 <rect x="0" y="0" width="13" height="8" fill="#002d62" />
@@ -61,23 +75,31 @@ export function App() {
             </div>
           </div>
 
-          {/* Center Tournament Score Telemetry (Directly from Mockup) */}
+          {/* Center Tournament Score Telemetry */}
           <div className="hidden lg:flex items-center gap-4 px-4 py-1.5 rounded-2xl bg-black/60 border border-white/10 backdrop-blur-md shadow-inner">
             <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-black text-[10px] tracking-wider flex items-center gap-1.5 border border-emerald-500/30">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              LIVE
+              {tr('EN VIVO', 'LIVE')}
             </span>
             <div className="text-center font-mono">
-              <span className="text-[9px] uppercase tracking-wider text-slate-400 block -mb-0.5">Live Tournament Score</span>
-              <span className="text-sm font-black text-white">154 - 120</span>
+              <span className="text-[9px] uppercase tracking-wider text-slate-400 block -mb-0.5">
+                {tr(`Nosotros / Ellos (Meta ${telemetry.targetScore})`, `Us / Them (Target ${telemetry.targetScore})`)}
+              </span>
+              <span data-testid="header-live-score" className="text-sm font-black text-white">
+                {telemetry.scores[0]} - {telemetry.scores[1]}
+              </span>
             </div>
             <div className="text-center font-mono border-l border-white/10 pl-4">
-              <span className="text-[9px] uppercase tracking-wider text-slate-400 block -mb-0.5">Round</span>
-              <span className="text-xs font-bold text-amber-300">00:00:00</span>
+              <span className="text-[9px] uppercase tracking-wider text-slate-400 block -mb-0.5">
+                {tr('Mano / Tiempo', 'Hand / Time')}
+              </span>
+              <span data-testid="header-round-timer" className="text-xs font-bold text-amber-300">
+                #{telemetry.handNumber} • {formatClock(telemetry.roundSeconds)}
+              </span>
             </div>
           </div>
 
-          {/* Minimal Navigation Switches + Theme Toggle */}
+          {/* Minimal Navigation Switches + Language & Theme Toggles */}
           <div className="flex items-center gap-1.5 sm:gap-2">
             <nav className="flex items-center gap-1 sm:gap-1.5">
               <button
@@ -89,7 +111,7 @@ export function App() {
                 }`}
               >
                 <Play className="w-3.5 h-3.5" />
-                <span>Mesa</span>
+                <span>{tr('Mesa', 'Table')}</span>
               </button>
 
               <button
@@ -101,7 +123,7 @@ export function App() {
                 }`}
               >
                 <Brain className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Academia</span>
+                <span className="hidden sm:inline">{tr('Academia', 'Academy')}</span>
               </button>
 
               <button
@@ -113,7 +135,7 @@ export function App() {
                 }`}
               >
                 <BarChart2 className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Matriz 28</span>
+                <span className="hidden sm:inline">{tr('Matriz 28', '28 Matrix')}</span>
               </button>
 
               <button
@@ -125,14 +147,26 @@ export function App() {
                 }`}
               >
                 <BookOpen className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Doctrina</span>
+                <span className="hidden sm:inline">{tr('Doctrina', 'Doctrine')}</span>
               </button>
             </nav>
 
             <button
+              type="button"
+              data-testid="lang-toggle"
+              onClick={toggleLang}
+              className="px-2.5 py-1.5 rounded-xl bg-black/40 border border-white/10 text-xs font-black tracking-wider text-amber-300 hover:text-white hover:border-amber-400/50 transition flex items-center gap-1"
+              title={tr('Switch to English (EN)', 'Cambiar a Español (ES)')}
+              aria-label={tr('Switch to English (EN)', 'Cambiar a Español (ES)')}
+            >
+              <Languages className="w-3.5 h-3.5" />
+              <span>{lang.toUpperCase()}</span>
+            </button>
+
+            <button
               onClick={toggleTheme}
               className="p-2 rounded-xl bg-black/40 border border-white/10 text-slate-300 hover:text-white transition"
-              title="Cambiar tema"
+              title={tr('Cambiar tema', 'Toggle theme')}
             >
               {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-300" />}
             </button>
@@ -147,7 +181,7 @@ export function App() {
           : 'max-w-7xl px-2.5 sm:px-6 lg:px-8 py-3 sm:py-6'
       }`}>
         {activeTab === 'academy' && <TacticalAcademy />}
-        {activeTab === 'simulator' && <MatchSimulator />}
+        {activeTab === 'simulator' && <MatchSimulator onTelemetryChange={setTelemetry} />}
         {activeTab === 'tracker' && <TileTracker />}
         {activeTab === 'library' && <PrinciplesLibrary />}
       </main>
@@ -156,7 +190,10 @@ export function App() {
       <footer className="border-t border-slate-800/80 py-4 bg-slate-950 text-slate-500 text-xs text-center">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
           <span>
-            Material educativo original sobre estrategia de dominó.
+            {tr(
+              'Material educativo original sobre estrategia de dominó.',
+              'Original educational material on competitive domino strategy.'
+            )}
           </span>
         </div>
       </footer>

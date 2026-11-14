@@ -13,6 +13,7 @@ interface DominoTileProps {
   badge?: string;
   badgeColor?: string;
   orderBadge?: number | string;
+  boardMode?: boolean;
 }
 
 export const DominoTile: React.FC<DominoTileProps> = ({
@@ -28,6 +29,7 @@ export const DominoTile: React.FC<DominoTileProps> = ({
   badge,
   badgeColor = 'bg-amber-500 text-slate-950',
   orderBadge,
+  boardMode = false,
 }) => {
   const isHorizontal = orientation === 'horizontal';
 
@@ -111,7 +113,7 @@ export const DominoTile: React.FC<DominoTileProps> = ({
           bg-gradient-to-b from-[#fbf8f0] via-[#f5edd8] to-[#e8dcb8]
           border border-[#d1c2a5] rounded-lg
           transition-all duration-150
-          shadow-[0_6px_14px_-2px_rgba(0,0,0,0.5),0_2px_4px_-1px_rgba(0,0,0,0.35),inset_0_1.5px_1px_rgba(255,255,255,0.95),inset_0_-1.5px_1px_rgba(0,0,0,0.1)]
+          ${boardMode ? 'shadow-[inset_0_1.5px_1px_rgba(255,255,255,0.95),inset_0_-1.5px_1px_rgba(0,0,0,0.12)]' : 'shadow-[0_6px_14px_-2px_rgba(0,0,0,0.5),0_2px_4px_-1px_rgba(0,0,0,0.35),inset_0_1.5px_1px_rgba(255,255,255,0.95),inset_0_-1.5px_1px_rgba(0,0,0,0.1)]'}
           ${selected ? 'ring-4 ring-amber-400 scale-105 -translate-y-1.5 shadow-amber-500/50' : ''}
           ${highlighted ? 'border-amber-400 ring-2 ring-amber-400/80 -translate-y-1 shadow-[0_12px_22px_-3px_rgba(0,0,0,0.6),0_4px_8px_-2px_rgba(0,0,0,0.4),inset_0_2px_1.5px_rgba(255,255,255,1)]' : ''}
           ${disabled ? 'cursor-default opacity-85' : 'active:scale-95 sm:hover:-translate-y-1.5 sm:hover:shadow-[0_12px_22px_-3px_rgba(0,0,0,0.6),0_4px_8px_-2px_rgba(0,0,0,0.4),inset_0_2px_1.5px_rgba(255,255,255,1)] cursor-pointer'}
