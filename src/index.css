@@ -1,0 +1,194 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    overscroll-behavior-y: none;
+  }
+
+  button,
+  a,
+  [role="button"] {
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+}
+
+@layer utilities {
+  .felt-texture {
+    background-color: #081a10;
+    background-image: 
+      radial-gradient(ellipse at 50% 45%, #18482d 0%, #0d291a 45%, #07170e 85%, #040d08 100%),
+      radial-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+    background-size: 100% 100%, 18px 18px;
+  }
+
+  .glass-panel {
+    background: rgba(11, 19, 14, 0.72);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .glass-panel-elevated {
+    background: rgba(10, 18, 14, 0.78);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Light Mode Theme Overrides (preserves authentic green felt domino table) */
+html.light-mode body,
+html.light-mode .bg-\[\#0a0f1d\] {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+html.light-mode header.bg-\[\#0d1527\]\/95 {
+  background-color: rgba(255, 255, 255, 0.94) !important;
+  border-color: #cbd5e1 !important;
+}
+
+html.light-mode footer.bg-slate-950 {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #64748b !important;
+}
+
+/* Domino Tile & Pips protection in Light Mode */
+html.light-mode .domino-pip {
+  background-color: #0f172a !important;
+}
+
+/* Primary Cards & Containers outside the felt table */
+html.light-mode .bg-slate-900:not(.felt-texture *):not(.domino-tile *),
+html.light-mode .bg-slate-900\/95:not(.felt-texture *):not(.domino-tile *),
+html.light-mode .bg-slate-900\/90:not(.felt-texture *):not(.domino-tile *),
+html.light-mode .bg-slate-900\/80:not(.felt-texture *):not(.domino-tile *),
+html.light-mode .bg-slate-900\/70:not(.felt-texture *):not(.domino-tile *),
+html.light-mode .bg-slate-900\/60:not(.felt-texture *):not(.domino-tile *) {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06) !important;
+}
+
+/* Nested Sub-cards outside the felt table */
+html.light-mode .bg-slate-950:not(.felt-texture *):not(.domino-tile *):not(.w-full),
+html.light-mode .bg-slate-950\/70:not(.felt-texture *):not(.domino-tile *),
+html.light-mode .bg-slate-950\/60:not(.felt-texture *):not(.domino-tile *) {
+  background-color: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+}
+
+/* Secondary Buttons & Option Cards outside the felt table */
+html.light-mode .bg-slate-800:not(.felt-texture *),
+html.light-mode .bg-slate-800\/80:not(.felt-texture *) {
+  background-color: #e2e8f0 !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+html.light-mode .hover\:bg-slate-800:hover:not(.felt-texture *),
+html.light-mode .hover\:bg-slate-800\/80:hover:not(.felt-texture *),
+html.light-mode .hover\:bg-slate-700:hover:not(.felt-texture *) {
+  background-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+/* Tinted Callout Boxes outside the felt table */
+html.light-mode .bg-amber-950\/40:not(.felt-texture *),
+html.light-mode .bg-amber-950\/30:not(.felt-texture *) {
+  background-color: #fffbeb !important;
+  border-color: #f59e0b !important;
+}
+
+html.light-mode .bg-emerald-950\/70:not(.felt-texture *),
+html.light-mode .bg-emerald-950\/60:not(.felt-texture *),
+html.light-mode .bg-emerald-950\/40:not(.felt-texture *),
+html.light-mode .bg-emerald-950:not(.felt-texture *) {
+  background-color: #ecfdf5 !important;
+  border-color: #10b981 !important;
+}
+
+html.light-mode .bg-rose-950\/80:not(.felt-texture *),
+html.light-mode .bg-rose-950\/60:not(.felt-texture *),
+html.light-mode .bg-rose-950\/40:not(.felt-texture *),
+html.light-mode .bg-rose-950\/30:not(.felt-texture *) {
+  background-color: #fff1f2 !important;
+  border-color: #f43f5e !important;
+}
+
+html.light-mode .bg-blue-950:not(.felt-texture *) {
+  background-color: #eff6ff !important;
+  border-color: #3b82f6 !important;
+}
+
+html.light-mode .bg-purple-950:not(.felt-texture *) {
+  background-color: #faf5ff !important;
+  border-color: #a855f7 !important;
+}
+
+/* Typography & Borders outside the felt table */
+html.light-mode .border-slate-800:not(.felt-texture *),
+html.light-mode .border-slate-800\/80:not(.felt-texture *),
+html.light-mode .border-slate-700:not(.felt-texture *) {
+  border-color: #cbd5e1 !important;
+}
+
+html.light-mode .text-white:not(.felt-texture *):not(.domino-tile *),
+html.light-mode .text-slate-100:not(.felt-texture *),
+html.light-mode .text-slate-200:not(.felt-texture *),
+html.light-mode .text-emerald-100:not(.felt-texture *),
+html.light-mode .text-rose-100:not(.felt-texture *),
+html.light-mode .text-amber-200:not(.felt-texture *),
+html.light-mode .text-emerald-200:not(.felt-texture *),
+html.light-mode .text-rose-200:not(.felt-texture *) {
+  color: #0f172a !important;
+}
+
+html.light-mode .text-slate-300:not(.felt-texture *),
+html.light-mode .text-slate-400:not(.felt-texture *) {
+  color: #334155 !important;
+}
+
+/* High-contrast accent text on light backgrounds */
+html.light-mode .text-amber-400:not(.felt-texture *):not(.bg-slate-950 *),
+html.light-mode .text-amber-300:not(.felt-texture *):not(.bg-slate-950 *) {
+  color: #b45309 !important;
+}
+
+html.light-mode .text-emerald-400:not(.felt-texture *),
+html.light-mode .text-emerald-300:not(.felt-texture *) {
+  color: #047857 !important;
+}
+
+html.light-mode .text-rose-400:not(.felt-texture *),
+html.light-mode .text-rose-300:not(.felt-texture *) {
+  color: #be123c !important;
+}
+
+html.light-mode .text-cyan-400:not(.felt-texture *),
+html.light-mode .text-cyan-300:not(.felt-texture *),
+html.light-mode .text-blue-400:not(.felt-texture *) {
+  color: #0369a1 !important;
+}
+
+html.light-mode .text-purple-400:not(.felt-texture *) {
+  color: #7e22ce !important;
+}
+
