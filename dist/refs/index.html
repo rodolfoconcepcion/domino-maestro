@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dominó Maestro - Comparativa Visual de Arquitectura y Referencias</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background-color: #0b1311;
+      color: #e2e8f0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    }
+    .card-glass {
+      background: rgba(18, 30, 26, 0.85);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      backdrop-filter: blur(12px);
+    }
+  </style>
+</head>
+<body class="p-6 md:p-10 max-w-7xl mx-auto">
+  <header class="mb-10 text-center">
+    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950/60 border border-emerald-500/30 text-emerald-400 text-xs font-semibold uppercase tracking-wider mb-3">
+      Auditoría Visual & Selección de Motor Gráfico
+    </div>
+    <h1 class="text-3xl md:text-5xl font-extrabold tracking-tight text-white mb-3">
+      Dominó Maestro vs Apps Comerciales
+    </h1>
+    <p class="text-gray-400 text-sm md:text-base max-w-2xl mx-auto">
+      Análisis técnico de cómo las dos aplicaciones líderes de la industria resuelven la perspectiva de la mesa, el renderizado de fichas marfil y los atriles de los jugadores.
+    </p>
+  </header>
+
+  <!-- SECCIÓN 1: EL OBJETIVO (MOCKUP ORIGINAL) -->
+  <section class="mb-12">
+    <div class="card-glass rounded-2xl p-6 border-emerald-500/40 shadow-2xl">
+      <div class="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b border-gray-800 gap-2 mb-4">
+        <div>
+          <span class="text-xs font-bold uppercase tracking-wider text-emerald-400">Meta Visual</span>
+          <h2 class="text-2xl font-bold text-white">El Mockup Original (Visión de Dominó Maestro)</h2>
+        </div>
+        <div class="flex items-center gap-2">
+          <a href="mockup.jpg" target="_blank" class="px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 text-xs font-medium border border-emerald-500/30 transition">
+            Abrir Original en Alta Resolución ↗
+          </a>
+        </div>
+      </div>
+      
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-2 rounded-xl overflow-hidden bg-black/50 border border-gray-800 flex items-center justify-center">
+          <img src="mockup.jpg" alt="Mockup Dominó Maestro" class="w-full h-auto object-contain max-h-[500px]">
+        </div>
+        <div class="space-y-4 text-sm text-gray-300 flex flex-col justify-center">
+          <div class="p-4 rounded-xl bg-gray-900/60 border border-gray-800">
+            <h3 class="text-white font-semibold mb-1 flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-emerald-400"></span> Fichas de Marfil Fotorealistas
+            </h3>
+            <p class="text-gray-400 text-xs leading-relaxed">
+              Bordes biselados suaves con destellos especulares, perno central metálico (latón dorado) y hendiduras suaves de puntos (pips) con relieve táctil.
+            </p>
+          </div>
+          <div class="p-4 rounded-xl bg-gray-900/60 border border-gray-800">
+            <h3 class="text-white font-semibold mb-1 flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-emerald-400"></span> Atril Físico (Rack)
+            </h3>
+            <p class="text-gray-400 text-xs leading-relaxed">
+              Las 7 fichas del jugador descansan erguidas dentro de un atril físico esculpido en la base, mientras los oponentes tienen sus fichas de pie mostrando el dorso biselado en los laterales y cabecera.
+            </p>
+          </div>
+          <div class="p-4 rounded-xl bg-gray-900/60 border border-gray-800">
+            <h3 class="text-white font-semibold mb-1 flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-emerald-400"></span> Perspectiva 2.5D Isométrica Suave
+            </h3>
+            <p class="text-gray-400 text-xs leading-relaxed">
+              Mesa de fieltro verde con viñeteado oscuro perimetral, sombras de contacto suaves y HUD táctico flotante con cristal esmerilado (glassmorphism).
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECCIÓN 2: LAS 2 APPS PROFESIONALES -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
+    
+    <!-- APP 1: DOMINO GO -->
+    <div class="card-glass rounded-2xl p-6 flex flex-col justify-between">
+      <div>
+        <div class="flex items-center justify-between pb-3 border-b border-gray-800 mb-4">
+          <div>
+            <span class="text-xs font-bold uppercase tracking-wider text-amber-400">Referencia Comercial 1</span>
+            <h3 class="text-xl font-bold text-white">Domino Go (Beach Bum Games)</h3>
+            <p class="text-xs text-gray-400">Enfoque: 2.5D Isométrico + Sprites PBR Pre-renderizados</p>
+          </div>
+          <a href="domino-go.jpg" target="_blank" class="px-2.5 py-1 rounded bg-amber-500/20 text-amber-300 text-xs border border-amber-500/30">
+            Ver Full ↗
+          </a>
+        </div>
+        
+        <div class="rounded-xl overflow-hidden bg-black/60 border border-gray-800 mb-4">
+          <img src="domino-go.jpg" alt="Domino Go Gameplay" class="w-full h-auto object-cover max-h-[350px]">
+        </div>
+
+        <div class="space-y-3 text-xs text-gray-300">
+          <div class="flex gap-2">
+            <span class="text-amber-400 font-bold">✓</span>
+            <div>
+              <strong class="text-white">Atril de Madera Físico:</strong> Las fichas del jugador se colocan erguidas en una ranura de madera en la parte inferior, idéntico al concepto del mockup.
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <span class="text-amber-400 font-bold">✓</span>
+            <div>
+              <strong class="text-white">Sprites 3D Pre-renderizados (2.5D):</strong> No renderizan polígonos Three.js en vivo. Modelan las fichas en Blender con iluminación Cycles fotorealista y las exportan como sprites PNG de alta definición.
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <span class="text-amber-400 font-bold">✓</span>
+            <div>
+              <strong class="text-white">Sombras de Contacto Suaves:</strong> Cada ficha tiene un sombreado ambiental bajo la base que le da peso físico sobre el tapete.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-6 pt-4 border-t border-gray-800">
+        <span class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Veredicto Técnico:</span>
+        <p class="text-xs text-emerald-400 mt-1">
+          Es exactamente la arquitectura idónea para replicar el Mockup al 100%: Fichas renderizadas en Blender con relieve PBR + atril de madera/grafito físico + mesa 2.5D.
+        </p>
+      </div>
+    </div>
+
+    <!-- APP 2: DOMINOES JOGATINA -->
+    <div class="card-glass rounded-2xl p-6 flex flex-col justify-between">
+      <div>
+        <div class="flex items-center justify-between pb-3 border-b border-gray-800 mb-4">
+          <div>
+            <span class="text-xs font-bold uppercase tracking-wider text-blue-400">Referencia Comercial 2</span>
+            <h3 class="text-xl font-bold text-white">Dominoes (Jogatina)</h3>
+            <p class="text-xs text-gray-400">Enfoque: Top-Down 2D Torneo Ultra-Limpio</p>
+          </div>
+          <a href="jogatina.jpg" target="_blank" class="px-2.5 py-1 rounded bg-blue-500/20 text-blue-300 text-xs border border-blue-500/30">
+            Ver Full ↗
+          </a>
+        </div>
+        
+        <div class="rounded-xl overflow-hidden bg-black/60 border border-gray-800 mb-4 flex items-center justify-center">
+          <img src="jogatina.jpg" alt="Dominoes Jogatina Gameplay" class="w-full h-auto object-contain max-h-[350px]">
+        </div>
+
+        <div class="space-y-3 text-xs text-gray-300">
+          <div class="flex gap-2">
+            <span class="text-blue-400 font-bold">✓</span>
+            <div>
+              <strong class="text-white">Perspectiva Cenital (Top-Down):</strong> Vista 100% plana desde arriba sin ángulos oblicuos. Maximiza el espacio de juego para cadenas largas de fichas.
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <span class="text-blue-400 font-bold">✓</span>
+            <div>
+              <strong class="text-white">Fichas Clásicas Biseladas:</strong> Bordes blancos limpios con micro-sombras 2D. Sin distorsión de cámara ni recortes por inclinación.
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <span class="text-blue-400 font-bold">✓</span>
+            <div>
+              <strong class="text-white">Atril Plano Minimalista:</strong> Bandeja horizontal en la base donde se seleccionan las fichas para jugar.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-6 pt-4 border-t border-gray-800">
+        <span class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Veredicto Técnico:</span>
+        <p class="text-xs text-blue-300 mt-1">
+          La app más jugada del mundo. Prioriza la claridad analítica y lectura inmediata de las 28 fichas por encima del espectáculo tridimensional.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- COMPARATIVA DE OPCIONES TÉCNICAS -->
+  <section class="card-glass rounded-2xl p-6 md:p-8">
+    <h3 class="text-xl font-bold text-white mb-4">¿Cuál es el camino que deseas seguir?</h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+      <div class="p-5 rounded-xl bg-emerald-950/30 border border-emerald-500/30">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-lg">🏆</span>
+          <h4 class="font-bold text-emerald-400">Camino A: Réplica Exacta del Mockup (Estilo Domino Go)</h4>
+        </div>
+        <p class="text-xs text-gray-300 mb-3 leading-relaxed">
+          Generamos las fichas 3D con Blender (disponemos del plugin y herramientas Blender instaladas en el sistema) exportando sprites en alta definición con textura marfil PBR, perno de latón dorado y sombreado suave. El atril inferior y los laterales se diseñan como elementos físicos tridimensionales en 2.5D.
+        </p>
+        <span class="text-xs font-semibold text-emerald-300">Resultado: 100% idéntico al Mockup visual sin bugs de perspectiva.</span>
+      </div>
+
+      <div class="p-5 rounded-xl bg-blue-950/30 border border-blue-500/30">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-lg">🎯</span>
+          <h4 class="font-bold text-blue-400">Camino B: Torneo Profesional Cenital (Estilo Jogatina)</h4>
+        </div>
+        <p class="text-xs text-gray-300 mb-3 leading-relaxed">
+          Diseño limpio 2D top-down con fichas marfil nítidas, perfecto para visualizar con máxima claridad los cálculos del Tactical Coach y la Matriz de Probabilidades de 28 fichas sin rotaciones forzadas.
+        </p>
+        <span class="text-xs font-semibold text-blue-300">Resultado: Máxima claridad táctica, lectura rápida y cero distorsión.</span>
+      </div>
+    </div>
+  </section>
+</body>
+</html>
