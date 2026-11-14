@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dominó Maestro 2.5D (Isometric CSS & PBR)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: radial-gradient(ellipse at 50% 50%, #153f27 0%, #0d2819 45%, #07170e 75%, #020804 100%);
+      color: #fff;
+    }
+
+    /* Subtle Felt Texture */
+    .felt-surface::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: radial-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+      background-size: 6px 6px;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* Floating Glass HUD Panels */
+    .glass-hud {
+      background: rgba(10, 18, 14, 0.78);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    }
+
+    /* Table Dominoes on Felt */
+    .domino-tile-3d {
+      position: absolute;
+      border-radius: 7px;
+      background: linear-gradient(150deg, #fdfbf7 0%, #f4ede0 45%, #e8dcbf 85%, #d6c6a0 100%);
+      box-shadow: 
+        0 1px 0 rgba(255, 255, 255, 0.95) inset,
+        0 -3px 0 #b39f7c inset,
+        -1.5px 0 0 #c2b18f inset,
+        1.5px 0 0 #c2b18f inset,
+        0 12px 20px -3px rgba(0, 0, 0, 0.75),
+        0 4px 6px rgba(0, 0, 0, 0.4),
+        0 20px 32px -6px rgba(0, 0, 0, 0.55);
+      display: flex;
+      flex-direction: column;
+      user-select: none;
+      cursor: pointer;
+      transition: all 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    .domino-tile-3d.horizontal {
+      flex-direction: row;
+    }
+
+    .domino-tile-3d:hover {
+      transform: translateY(-6px) scale(1.03);
+      box-shadow: 
+        0 1px 0 rgba(255, 255, 255, 1) inset,
+        0 -3px 0 #b39f7c inset,
+        0 20px 30px -4px rgba(0, 0, 0, 0.85),
+        0 30px 40px -8px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Dividers */
+    .divider-h {
+      width: 100%;
+      height: 2px;
+      background: linear-gradient(90deg, #bfae8c 0%, #7d6b4c 50%, #bfae8c 100%);
+      box-shadow: 0 1px 0 rgba(255,255,255,0.6);
+      position: relative;
+    }
+    .divider-v {
+      width: 2px;
+      height: 100%;
+      background: linear-gradient(180deg, #bfae8c 0%, #7d6b4c 50%, #bfae8c 100%);
+      box-shadow: 1px 0 0 rgba(255,255,255,0.6);
+      position: relative;
+    }
+
+    /* Brass Rivet / Spinner */
+    .spinner-rivet {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #fff8c4 0%, #d8ad3b 45%, #8c691b 90%);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.8), 0 0 1px #443208;
+      z-index: 5;
+    }
+
+    /* Pips */
+    .pip {
+      width: 7.5px;
+      height: 7.5px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #2a2a2a 0%, #0d0d0d 60%, #000 100%);
+      box-shadow: inset 0 2px 2px rgba(0,0,0,0.9), 0 1px 1px rgba(255,255,255,0.5);
+    }
+
+    .pip-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      place-items: center;
+      width: 100%;
+      height: 100%;
+      padding: 3px;
+      box-sizing: border-box;
+    }
+
+    /* =========================================================================
+       STANDING OPPONENT TILES (TOP, LEFT, RIGHT) - TACTILE 3D IVORY
+       ========================================================================= */
+
+    /* Top Partner Tile (Horizontal Standing Row) */
+    .top-tile-standing {
+      width: 44px;
+      height: 28px;
+      border-radius: 4px;
+      background: linear-gradient(180deg, #ffffff 0%, #f4ede0 50%, #dfcea6 100%);
+      position: relative;
+      box-shadow: 
+        0 1px 0 rgba(255,255,255,1) inset,
+        0 -2px 0 #b39f78 inset,
+        -1.5px 0 0 #cfbe9a inset,
+        1.5px 0 0 #cfbe9a inset,
+        0 12px 18px -2px rgba(0, 0, 0, 0.8),
+        0 3px 5px rgba(0, 0, 0, 0.45);
+    }
+    .top-tile-standing::before {
+      content: '';
+      position: absolute;
+      top: -7px;
+      left: 0;
+      right: 0;
+      height: 7px;
+      background: linear-gradient(90deg, #ffffff 0%, #fbf7ee 50%, #ecdcb9 100%);
+      border-radius: 3px 3px 0 0;
+      box-shadow: 0 1px 1px rgba(255,255,255,1) inset;
+      transform: perspective(60px) rotateX(25deg);
+      transform-origin: bottom;
+    }
+
+    /* Left & Right Standing Tiles (Vertical Column) */
+    .side-tile-standing {
+      width: 26px;
+      height: 44px;
+      border-radius: 4px;
+      background: linear-gradient(160deg, #ffffff 0%, #f4eee0 55%, #dfcea6 100%);
+      position: relative;
+      box-shadow: 
+        0 1px 0 rgba(255,255,255,0.95) inset,
+        0 -2px 0 #b39f78 inset,
+        -1.5px 0 0 #cfbe9a inset,
+        1.5px 0 0 #cfbe9a inset,
+        0 10px 16px -2px rgba(0, 0, 0, 0.8),
+        0 2px 4px rgba(0, 0, 0, 0.45);
+      transition: transform 0.2s ease;
+    }
+    .side-tile-standing::before {
+      content: '';
+      position: absolute;
+      top: -6px;
+      left: 0;
+      right: 0;
+      height: 6px;
+      background: linear-gradient(90deg, #ffffff 0%, #faf5eb 50%, #eddcc0 100%);
+      border-radius: 3px 3px 0 0;
+      box-shadow: 0 1px 1px rgba(255,255,255,1) inset;
+      transform: perspective(50px) rotateX(25deg);
+      transform-origin: bottom;
+    }
+
+    /* Player Hand Bottom Tray */
+    .player-tray {
+      position: fixed;
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 10px 18px;
+      background: linear-gradient(180deg, rgba(14, 25, 18, 0.9) 0%, rgba(6, 12, 8, 0.98) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 20px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.9), inset 0 1px 1px rgba(255, 255, 255, 0.18);
+      z-index: 25;
+    }
+
+    .hand-tile {
+      width: 54px;
+      height: 108px;
+      border-radius: 9px;
+      background: linear-gradient(150deg, #ffffff 0%, #f7f0e3 40%, #eddcc0 85%, #dac69e 100%);
+      box-shadow: 
+        0 1px 0 rgba(255, 255, 255, 1) inset,
+        0 -4px 0 #b39f7c inset,
+        -2px 0 0 #c4b391 inset,
+        2px 0 0 #c4b391 inset,
+        0 12px 22px -3px rgba(0, 0, 0, 0.7),
+        0 4px 6px rgba(0, 0, 0, 0.4);
+      display: flex;
+      flex-direction: column;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      position: relative;
+    }
+
+    .hand-tile:hover {
+      transform: translateY(-14px) scale(1.05);
+      box-shadow: 
+        0 1px 0 rgba(255, 255, 255, 1) inset,
+        0 -4px 0 #b39f7c inset,
+        0 24px 35px -4px rgba(0, 0, 0, 0.85),
+        0 0 20px rgba(74, 222, 128, 0.4);
+      border-color: #4ade80;
+    }
+
+    /* Player Status Badge */
+    .player-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      background: rgba(0, 0, 0, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(8px);
+      font-size: 10.5px;
+      font-weight: 700;
+      color: #e4e4e7;
+    }
+
+    /* Probability Matrix Cells */
+    .mat-cell {
+      height: 20px;
+      font-size: 10.5px;
+      font-weight: 700;
+      border-radius: 3px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .mat-green {
+      background: #10b981;
+      color: #032b18;
+    }
+    .mat-amber {
+      background: #f59e0b;
+      color: #451a03;
+    }
+  </style>
+</head>
+<body class="select-none h-screen w-screen overflow-hidden felt-surface">
+
+  <!-- TOP APP BAR -->
+  <header class="fixed top-0 left-0 right-0 h-14 z-30 flex items-center justify-between px-6 bg-[#040d08]/85 backdrop-blur-md border-b border-white/10">
+    <div class="flex items-center space-x-3">
+      <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-emerald-400 flex items-center justify-center shadow-lg shadow-emerald-500/20 text-white font-extrabold text-base">
+        🀄
+      </div>
+      <div>
+        <div class="flex items-center space-x-2">
+          <span class="font-extrabold tracking-wider text-sm sm:text-base text-white">DOMINÓ MAESTRO</span>
+          <span class="text-sm">🇩🇴</span>
+          <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-400">2.5D ISOMETRIC</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Match Scoreboard -->
+    <div class="flex items-center space-x-3 px-4 py-1.5 rounded-2xl bg-black/50 border border-white/10 backdrop-blur-md">
+      <div class="flex items-center space-x-1.5">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span class="text-xs font-black tracking-widest text-emerald-400">LIVE</span>
+      </div>
+      <div class="h-3.5 w-px bg-white/20"></div>
+      <div class="text-center">
+        <div class="text-[9px] uppercase font-bold tracking-widest text-zinc-400">Live tournament score</div>
+        <div class="text-lg font-black text-white font-mono tracking-wider leading-none">154 <span class="text-zinc-500">-</span> 120</div>
+      </div>
+      <div class="h-3.5 w-px bg-white/20"></div>
+      <div class="text-center">
+        <div class="text-[9px] uppercase font-bold tracking-widest text-zinc-400">Round</div>
+        <div class="text-xs font-bold text-zinc-200 font-mono leading-none">00:00:00</div>
+      </div>
+    </div>
+
+    <!-- Links -->
+    <div class="flex items-center space-x-2.5">
+      <a href="/v1-threejs/" class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-zinc-300 hover:text-white hover:bg-white/10 transition-colors">
+        Ver Versión 1 (WebGL 3D) &rarr;
+      </a>
+      <a href="/" class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 transition-colors">
+        &larr; Volver al Juego
+      </a>
+    </div>
+  </header>
+
+  <!-- =========================================================================
+       MAIN ARENA: FULL-SCREEN CENTER FELT (NO CLIPPING)
+       ========================================================================= -->
+  <main class="fixed inset-0 pt-14 pb-36 px-[320px] flex items-center justify-center z-10 pointer-events-none">
+    
+    <!-- Central Domino Playing Space -->
+    <div class="relative w-[700px] h-[460px] pointer-events-auto">
+
+      <!-- ========================================== -->
+      <!-- TOP PARTNER: 7 Standing 3D Tiles in Rack   -->
+      <!-- ========================================== -->
+      <div class="absolute top-2 left-1/2 -translate-x-1/2 flex flex-col items-center space-y-1.5 z-20">
+        <div class="player-badge">
+          <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+          <span>Compañero</span>
+          <span class="text-zinc-400 font-mono">(7)</span>
+        </div>
+        <div class="flex space-x-1.5 p-1.5 rounded-xl bg-black/40 border border-white/10 shadow-xl">
+          <div class="top-tile-standing"></div>
+          <div class="top-tile-standing"></div>
+          <div class="top-tile-standing"></div>
+          <div class="top-tile-standing"></div>
+          <div class="top-tile-standing"></div>
+          <div class="top-tile-standing"></div>
+          <div class="top-tile-standing"></div>
+        </div>
+      </div>
+
+      <!-- ========================================== -->
+      <!-- LEFT OPPONENT: 6 Standing 3D Tiles in Rack -->
+      <!-- ========================================== -->
+      <div class="absolute left-2 top-1/2 -translate-y-1/2 flex flex-col items-center space-y-1.5 z-20">
+        <div class="player-badge">
+          <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+          <span>Rival Izq</span>
+          <span class="text-zinc-400 font-mono">(6)</span>
+        </div>
+        <div class="flex flex-col space-y-1 p-1.5 rounded-xl bg-black/40 border border-white/10 shadow-xl">
+          <div class="side-tile-standing"></div>
+          <div class="side-tile-standing"></div>
+          <div class="side-tile-standing"></div>
+          <div class="side-tile-standing"></div>
+          <div class="side-tile-standing"></div>
+          <div class="side-tile-standing"></div>
+        </div>
+      </div>
+
+      <!-- ========================================== -->
+      <!-- RIGHT OPPONENT: 6 Standing 3D Tiles        -->
+      <!-- ========================================== -->
+      <div class="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col items-center space-y-1.5 z-20">
+        <div class="player-badge">
+          <span class="w-2 h-2 rounded-full bg-rose-400"></span>
+          <span>Rival Der</span>
+          <span class="text-zinc-400 font-mono">(6)</span>
+          <span class="px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 text-[8px] font-black uppercase">Salidor</span>
+        </div>
+        <div class="flex flex-col space-y-1 p-1.5 rounded-xl bg-black/40 border border-white/10 shadow-xl">
+          <div class="side-tile-standing"></div>
+          <div class="side-tile-standing"></div>
+          <div class="side-tile-standing"></div>
+          <div class="side-tile-standing"></div>
+          <div class="side-tile-standing"></div>
+          <div class="side-tile-standing"></div>
+        </div>
+      </div>
+
+      <!-- ========================================== -->
+      <!-- CENTER DOMINO CHAIN: Tactile Dominican PBR -->
+      <!-- ========================================== -->
+
+      <!-- Tile 1: [6:6] Double Vertical -->
+      <div class="domino-tile-3d" style="width: 48px; height: 96px; left: 240px; top: 180px;">
+        <div class="pip-grid">
+          <div class="pip"></div><div></div><div class="pip"></div>
+          <div class="pip"></div><div></div><div class="pip"></div>
+          <div class="pip"></div><div></div><div class="pip"></div>
+        </div>
+        <div class="divider-h"><div class="spinner-rivet"></div></div>
+        <div class="pip-grid">
+          <div class="pip"></div><div></div><div class="pip"></div>
+          <div class="pip"></div><div></div><div class="pip"></div>
+          <div class="pip"></div><div></div><div class="pip"></div>
+        </div>
+      </div>
+
+      <!-- Tile 2: [6:1] Horizontal -->
+      <div class="domino-tile-3d horizontal" style="width: 96px; height: 48px; left: 290px; top: 204px;">
+        <div class="pip-grid">
+          <div class="pip"></div><div></div><div class="pip"></div>
+          <div class="pip"></div><div></div><div class="pip"></div>
+          <div class="pip"></div><div></div><div class="pip"></div>
+        </div>
+        <div class="divider-v"><div class="spinner-rivet"></div></div>
+        <div class="pip-grid">
+          <div></div><div></div><div></div>
+          <div></div><div class="pip"></div><div></div>
+          <div></div><div></div><div></div>
+        </div>
+      </div>
+
+      <!-- Tile 3: [1:1] Double Vertical -->
+      <div class="domino-tile-3d" style="width: 48px; height: 96px; left: 388px; top: 180px;">
+        <div class="pip-grid">
+          <div></div><div></div><div></div>
+          <div></div><div class="pip"></div><div></div>
+          <div></div><div></div><div></div>
+        </div>
+        <div class="divider-h"><div class="spinner-rivet"></div></div>
+        <div class="pip-grid">
+          <div></div><div></div><div></div>
+          <div></div><div class="pip"></div><div></div>
+          <div></div><div></div><div></div>
+        </div>
+      </div>
+
+      <!-- Tile 4: [1:5] Horizontal Branch -->
+      <div class="domino-tile-3d horizontal" style="width: 96px; height: 48px; left: 438px; top: 204px;">
+        <div class="pip-grid">
+          <div></div><div></div><div></div>
+          <div></div><div class="pip"></div><div></div>
+          <div></div><div></div><div></div>
+        </div>
+        <div class="divider-v"><div class="spinner-rivet"></div></div>
+        <div class="pip-grid">
+          <div class="pip"></div><div></div><div class="pip"></div>
+          <div></div><div class="pip"></div><div></div>
+          <div class="pip"></div><div></div><div class="pip"></div>
+        </div>
+      </div>
+
+      <!-- Tile 5: [5:5] Double Vertical on Right -->
+      <div class="domino-tile-3d" style="width: 48px; height: 96px; left: 536px; top: 180px;">
+        <div class="pip-grid">
+          <div class="pip"></div><div></div><div class="pip"></div>
+          <div></div><div class="pip"></div><div></div>
+          <div class="pip"></div><div></div><div class="pip"></div>
+        </div>
+        <div class="divider-h"><div class="spinner-rivet"></div></div>
+        <div class="pip-grid">
+          <div class="pip"></div><div></div><div class="pip"></div>
+          <div></div><div class="pip"></div><div></div>
+          <div class="pip"></div><div></div><div class="pip"></div>
+        </div>
+      </div>
+
+      <!-- Tile 6: [5:4] Horizontal going top -->
+      <div class="domino-tile-3d horizontal" style="width: 96px; height: 48px; left: 438px; top: 96px;">
+        <div class="pip-grid">
+          <div class="pip"></div><div></div><div class="pip"></div>
+          <div></div><div class="pip"></div><div></div>
+          <div class="pip"></div><div></div><div class="pip"></div>
+        </div>
+        <div class="divider-v"><div class="spinner-rivet"></div></div>
+        <div class="pip-grid">
+          <div class="pip"></div><div></div><div class="pip"></div>
+          <div></div><div></div><div></div>
+          <div class="pip"></div><div></div><div class="pip"></div>
+        </div>
+      </div>
+
+      <!-- Tile 7: [4:2] Horizontal Left Extension -->
+      <div class="domino-tile-3d horizontal" style="width: 96px; height: 48px; left: 142px; top: 204px;">
+        <div class="pip-grid">
+          <div></div><div></div><div class="pip"></div>
+          <div></div><div></div><div></div>
+          <div class="pip"></div><div></div><div></div>
+        </div>
+        <div class="divider-v"><div class="spinner-rivet"></div></div>
+        <div class="pip-grid">
+          <div class="pip"></div><div></div><div class="pip"></div>
+          <div></div><div></div><div></div>
+          <div class="pip"></div><div></div><div class="pip"></div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- =========================================================================
+       PLAYER RACK (BOTTOM CENTER - NEVER CUT OFF)
+       ========================================================================= -->
+  <div class="player-tray flex space-x-2.5 items-center">
+    <!-- Tile 1: [5:6] -->
+    <div class="hand-tile">
+      <div class="pip-grid">
+        <div class="pip"></div><div></div><div class="pip"></div>
+        <div></div><div class="pip"></div><div></div>
+        <div class="pip"></div><div></div><div class="pip"></div>
+      </div>
+      <div class="divider-h"><div class="spinner-rivet"></div></div>
+      <div class="pip-grid">
+        <div class="pip"></div><div></div><div class="pip"></div>
+        <div class="pip"></div><div></div><div class="pip"></div>
+        <div class="pip"></div><div></div><div class="pip"></div>
+      </div>
+    </div>
+
+    <!-- Tile 2: [1:6] -->
+    <div class="hand-tile">
+      <div class="pip-grid">
+        <div></div><div></div><div></div>
+        <div></div><div class="pip"></div><div></div>
+        <div></div><div></div><div></div>
+      </div>
+      <div class="divider-h"><div class="spinner-rivet"></div></div>
+      <div class="pip-grid">
+        <div class="pip"></div><div></div><div class="pip"></div>
+        <div class="pip"></div><div></div><div class="pip"></div>
+        <div class="pip"></div><div></div><div class="pip"></div>
+      </div>
+    </div>
+
+    <!-- Tile 3: [2:4] -->
+    <div class="hand-tile">
+      <div class="pip-grid">
+        <div></div><div></div><div class="pip"></div>
+        <div></div><div></div><div></div>
+        <div class="pip"></div><div></div><div></div>
+      </div>
+      <div class="divider-h"><div class="spinner-rivet"></div></div>
+      <div class="pip-grid">
+        <div class="pip"></div><div></div><div class="pip"></div>
+        <div></div><div></div><div></div>
+        <div class="pip"></div><div></div><div class="pip"></div>
+      </div>
+    </div>
+
+    <!-- Tile 4: [3:5] -->
+    <div class="hand-tile">
+      <div class="pip-grid">
+        <div class="pip"></div><div></div><div></div>
+        <div></div><div class="pip"></div><div></div>
+        <div></div><div></div><div class="pip"></div>
+      </div>
+      <div class="divider-h"><div class="spinner-rivet"></div></div>
+      <div class="pip-grid">
+        <div class="pip"></div><div></div><div class="pip"></div>
+        <div></div><div class="pip"></div><div></div>
+        <div class="pip"></div><div></div><div class="pip"></div>
+      </div>
+    </div>
+
+    <!-- Tile 5: [0:3] -->
+    <div class="hand-tile">
+      <div class="pip-grid">
+        <div></div><div></div><div></div>
+        <div></div><div></div><div></div>
+        <div></div><div></div><div></div>
+      </div>
+      <div class="divider-h"><div class="spinner-rivet"></div></div>
+      <div class="pip-grid">
+        <div class="pip"></div><div></div><div></div>
+        <div></div><div class="pip"></div><div></div>
+        <div></div><div></div><div class="pip"></div>
+      </div>
+    </div>
+
+    <!-- Tile 6: [4:4] Double -->
+    <div class="hand-tile">
+      <div class="pip-grid">
+        <div class="pip"></div><div></div><div class="pip"></div>
+        <div></div><div></div><div></div>
+        <div class="pip"></div><div></div><div class="pip"></div>
+      </div>
+      <div class="divider-h"><div class="spinner-rivet"></div></div>
+      <div class="pip-grid">
+        <div class="pip"></div><div></div><div class="pip"></div>
+        <div></div><div></div><div></div>
+        <div class="pip"></div><div></div><div class="pip"></div>
+      </div>
+    </div>
+
+    <!-- Tile 7: [0:0] Double Blank -->
+    <div class="hand-tile">
+      <div class="pip-grid"></div>
+      <div class="divider-h"><div class="spinner-rivet"></div></div>
+      <div class="pip-grid"></div>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       FLOATING LEFT HUD: TACTICAL COACH (EXACT MOCKUP DIMENSIONS)
+       ========================================================================= -->
+  <aside class="fixed left-5 top-18 w-[300px] glass-hud rounded-3xl p-4 sm:p-5 z-20 select-none">
+    <div class="flex items-center justify-between pb-3 border-b border-white/10">
+      <div class="flex items-center space-x-2">
+        <h2 class="text-sm font-extrabold text-white tracking-wide whitespace-nowrap">Tactical Coach</h2>
+        <span class="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Live</span>
+      </div>
+      <span class="text-[11px] text-zinc-400">Dominican strategy</span>
+    </div>
+
+    <!-- La Salida Analysis Card -->
+    <div class="mt-3.5 p-3 rounded-2xl bg-white/5 border border-white/10">
+      <div class="flex items-center justify-between text-xs mb-1">
+        <span class="font-bold text-white">La Salida</span>
+      </div>
+      <p class="text-[10.5px] text-zinc-400 mb-2">Dominican domino strategy</p>
+      
+      <div class="space-y-1 mb-2">
+        <div class="flex justify-between text-[11px] font-mono text-zinc-300">
+          <span class="text-emerald-400 font-bold">39%</span>
+          <span class="text-amber-400 font-bold">38%</span>
+        </div>
+        <div class="h-2 w-full bg-white/10 rounded-full overflow-hidden flex">
+          <div class="h-full bg-emerald-400 w-[50%]"></div>
+          <div class="h-full bg-amber-400 w-[50%]"></div>
+        </div>
+      </div>
+
+      <div class="flex justify-between text-[10px] text-zinc-400 font-mono">
+        <span>1</span><span>3</span><span>5</span><span>10</span><span>5</span>
+      </div>
+    </div>
+
+    <!-- Partner Signaling Card -->
+    <div class="mt-2.5 p-3 rounded-2xl bg-white/5 border border-white/10">
+      <div class="flex justify-between items-center mb-1">
+        <span class="text-xs font-bold text-white">Partner Signaling</span>
+        <span class="text-xs font-mono font-bold text-emerald-400">57%</span>
+      </div>
+      <div class="h-2 w-full bg-white/10 rounded-full overflow-hidden mt-1.5">
+        <div class="h-full bg-emerald-400 w-[57%] rounded-full shadow-sm shadow-emerald-400"></div>
+      </div>
+    </div>
+
+    <!-- Tranca Risk Card -->
+    <div class="mt-2.5 p-3 rounded-2xl bg-white/5 border border-white/10">
+      <div class="flex justify-between items-center mb-1">
+        <span class="text-xs font-bold text-white">Tranca Risk</span>
+        <span class="text-xs font-mono font-bold text-red-400">12%</span>
+      </div>
+      <div class="h-2 w-full bg-white/10 rounded-full overflow-hidden mt-1.5">
+        <div class="h-full bg-red-500 w-[12%] rounded-full"></div>
+      </div>
+    </div>
+
+    <!-- Match Hard Action -->
+    <button class="mt-3.5 w-full py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-zinc-300 hover:text-white transition-all shadow-md">
+      Match hard
+    </button>
+  </aside>
+
+  <!-- =========================================================================
+       FLOATING RIGHT HUD: 28-TILE PROBABILITY MATRIX
+       ========================================================================= -->
+  <aside class="fixed right-5 top-18 w-[300px] glass-hud rounded-3xl p-4 sm:p-5 z-20 select-none">
+    <div class="pb-3 border-b border-white/10">
+      <h2 class="text-sm font-extrabold text-white tracking-wide whitespace-nowrap">28-Tile Probability Matrix</h2>
+      <p class="text-[10.5px] text-zinc-400">Tracker in lowest 28-Tile</p>
+    </div>
+
+    <!-- Category Header Badges -->
+    <div class="grid grid-cols-2 gap-2 mt-3.5 text-center">
+      <div class="py-1 rounded-lg bg-emerald-500/20 text-emerald-400 text-xs font-bold border border-emerald-500/30">
+        Emerald
+      </div>
+      <div class="py-1 rounded-lg bg-amber-500/20 text-amber-400 text-xs font-bold border border-amber-500/30">
+        Amber
+      </div>
+    </div>
+
+    <!-- Dominican 7x7 Probability Matrix Grid -->
+    <div class="mt-2.5 grid grid-cols-6 gap-1 bg-black/40 p-2 rounded-2xl border border-white/5">
+      <div class="mat-cell mat-green">3</div>
+      <div class="mat-cell mat-green">5</div>
+      <div class="mat-cell mat-green">5</div>
+      <div class="mat-cell mat-amber">3</div>
+      <div class="mat-cell mat-amber">5</div>
+      <div class="mat-cell mat-amber">8</div>
+
+      <div class="mat-cell mat-green">3</div>
+      <div class="mat-cell mat-green">5</div>
+      <div class="mat-cell mat-green">5</div>
+      <div class="mat-cell mat-amber">8</div>
+      <div class="mat-cell mat-amber">10</div>
+      <div class="mat-cell mat-amber">8</div>
+
+      <div class="mat-cell mat-green">1</div>
+      <div class="mat-cell mat-green">5</div>
+      <div class="mat-cell mat-green">5</div>
+      <div class="mat-cell mat-amber">8</div>
+      <div class="mat-cell mat-amber">4</div>
+      <div class="mat-cell mat-amber">4</div>
+
+      <div class="mat-cell mat-green">1</div>
+      <div class="mat-cell mat-green">3</div>
+      <div class="mat-cell mat-green">5</div>
+      <div class="mat-cell mat-amber">4</div>
+      <div class="mat-cell mat-amber">3</div>
+      <div class="mat-cell mat-amber">4</div>
+
+      <div class="mat-cell mat-green">1</div>
+      <div class="mat-cell mat-green">2</div>
+      <div class="mat-cell mat-green">3</div>
+      <div class="mat-cell mat-amber">1</div>
+      <div class="mat-cell mat-amber">2</div>
+      <div class="mat-cell mat-amber">4</div>
+
+      <div class="mat-cell mat-green">1</div>
+      <div class="mat-cell mat-green">2</div>
+      <div class="mat-cell mat-green">3</div>
+      <div class="mat-cell mat-amber">1</div>
+      <div class="mat-cell mat-amber">2</div>
+      <div class="mat-cell mat-amber">2</div>
+    </div>
+
+    <!-- Statistics Breakdown -->
+    <div class="mt-3.5 space-y-1.5 text-xs">
+      <div class="flex justify-between text-zinc-300">
+        <span>Card Counting</span>
+        <span class="font-mono font-bold text-white">14</span>
+      </div>
+      <div class="flex justify-between text-zinc-300">
+        <span>Neon emerald</span>
+        <span class="font-mono font-bold text-emerald-400">30</span>
+      </div>
+    </div>
+
+    <!-- Progress Meter -->
+    <div class="mt-3">
+      <div class="flex justify-between text-xs mb-1">
+        <span class="text-zinc-400">Card counting</span>
+        <span class="font-mono font-bold text-amber-400">2/6</span>
+      </div>
+      <div class="h-2 w-full bg-white/10 rounded-full overflow-hidden">
+        <div class="h-full bg-amber-400 w-[33%] rounded-full"></div>
+      </div>
+    </div>
+  </aside>
+
+</body>
+</html>
