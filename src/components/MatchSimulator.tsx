@@ -3,6 +3,9 @@ import confetti from 'canvas-confetti';
 import { DominoTile } from './DominoTile';
 import { Tile } from '../types/domino';
 import { RotateCcw, Sparkles, User, Users, Settings2, X } from 'lucide-react';
+import { playClackSound } from '../utils/sound';
+import { CoachOption, evaluateMovesForSeat, getPlayableMoves } from '../engine/coach';
+import { useLanguage } from '../i18n/LanguageContext';
 
 // Generate full standard 28 double-six tiles
 const generateSet = (): Tile[] => {
@@ -25,13 +28,19 @@ interface BoardItem {
   tile: Tile;
   playedBy: number;
   playOrder: number;
+  inner?: number;
+  outer?: number;
 }
 
-interface CoachOption {
-  tile: Tile;
-  label: string;
-  total: number;
-  breakdown: { label: string; pts: number }[];
+export interface MatchTelemetry {
+  scores: [number, number];
+  targetScore: 100 | 200;
+  handNumber: number;
+  roundSeconds: number;
+}
+
+interface MatchSimulatorProps {
+  onTelemetryChange?: (telemetry: MatchTelemetry) => void;
 }
 
 interface Placed {
@@ -111,7 +120,14 @@ const shuffle = <T,>(arr: T[]): T[] => {
   return copy;
 };
 
-export const MatchSimulator: React.FC = () => {
+export const MatchSimulator: React.FC<MatchSimulatorProps> = ({ onTelemetryChange }) => {
+  const { lang, tr } = useLanguage();
+  const playerBadges: Record<number, { tag: string; name: string; color: string; dot: string }> = {
+    0: { tag: tr('TÚ', 'YOU'), name: tr('Tú', 'You'), color: PLAYER_BADGES[0].color, dot: PLAYER_BADGES[0].dot },
+    1: { tag: tr('RD', 'RR'), name: tr('Rival Derecha', 'Right Rival'), color: PLAYER_BADGES[1].color, dot: PLAYER_BADGES[1].dot },
+    2: { tag: tr('COM', 'PTR'), name: tr('Compañero', 'Partner'), color: PLAYER_BADGES[2].color, dot: PLAYER_BADGES[2].dot },
+    3: { tag: tr('RI', 'LR'), name: tr('Rival Izquierda', 'Left Rival'), color: PLAYER_BADGES[3].color, dot: PLAYER_BADGES[3].dot },
+  };
   const [board, setBoard] = useState<BoardItem[]>([]);
   const [boardEnds, setBoardEnds] = useState<[number, number] | null>(null);
   const [turn, setTurn] = useState<number>(0); // 0: Player (You), 1: Right, 2: Partner (Top), 3: Left
@@ -147,6 +163,7 @@ export const MatchSimulator: React.FC = () => {
   const [lastPlayerWhoPlayed, setLastPlayerWhoPlayed] = useState<number>(0);
   const [gameScores, setGameScores] = useState<[number, number]>([0, 0]); // [Team Us (0&2), Team Them (1&3)]
   const [handNumber, setHandNumber] = useState<number>(1);
+  const [roundSeconds, setRoundSeconds] = useState<number>(0);
   const [salidorIndex, setSalidorIndex] = useState<number>(0);
   const [centerIdx, setCenterIdx] = useState<number>(0); // index of the first tile inside board[]
   const [pendingTile, setPendingTile] = useState<Tile | null>(null); // tile fits both ends: ask user
@@ -158,18 +175,47 @@ export const MatchSimulator: React.FC = () => {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
+  useEffect(() => {
+    if (gameOver) return;
+    const interval = window.setInterval(() => {
+      setRoundSeconds((prev) => prev + 1);
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, [gameOver, handNumber]);
+
+  useEffect(() => {
+    onTelemetryChange?.({
+      scores: gameScores,
+      targetScore,
+      handNumber,
+      roundSeconds,
+    });
+  }, [gameScores, targetScore, handNumber, roundSeconds, onTelemetryChange]);
+
   const isZapatoUs = gameScores[0] >= targetScore && gameScores[1] === 0;
   const isZapatoThem = gameScores[1] >= targetScore && gameScores[0] === 0;
 
   const matchWinner =
     gameScores[0] >= targetScore
       ? isZapatoUs && ruleZapatoAlert
-        ? '¡ZAPATO COMPLETO / PELA DE CHIVO! Tu Pareja (Nosotros) blanqueó la partida ' + gameScores[0] + ' a 0.'
-        : '¡Tu Pareja (Nosotros) ganó la partida completa!'
+        ? tr(
+            `¡ZAPATO COMPLETO / PELA DE CHIVO! Tu Pareja (Nosotros) blanqueó la partida ${gameScores[0]} a 0.`,
+            `FULL SHUTOUT (ZAPATO)! Your Pair (Us) shut out the match ${gameScores[0]} to 0.`
+          )
+        : tr(
+            '¡Tu Pareja (Nosotros) ganó la partida completa!',
+            'Your Pair (Us) won the full match!'
+          )
       : gameScores[1] >= targetScore
       ? isZapatoThem && ruleZapatoAlert
-        ? '¡ZAPATO COMPLETO / PELA DE CHIVO! La Pareja Rival (Ellos) blanqueó la partida ' + gameScores[1] + ' a 0.'
-        : 'La Pareja Rival (Ellos) ganó la partida completa.'
+        ? tr(
+            `¡ZAPATO COMPLETO / PELA DE CHIVO! La Pareja Rival (Ellos) blanqueó la partida ${gameScores[1]} a 0.`,
+            `FULL SHUTOUT (ZAPATO)! Opponents (Them) shut out the match ${gameScores[1]} to 0.`
+          )
+        : tr(
+            'La Pareja Rival (Ellos) ganó la partida completa.',
+            'Opponents (Them) won the full match.'
+          )
       : null;
 
   // Start new round
@@ -211,6 +257,7 @@ export const MatchSimulator: React.FC = () => {
     setConsecutivePasses(0);
     setLastPlayerWhoPlayed(starter);
     setPendingTile(null);
+    setRoundSeconds(0);
     setSalidorIndex(starter);
     setTurn(starter);
   };
@@ -228,225 +275,49 @@ export const MatchSimulator: React.FC = () => {
   }, []);
 
   // Player Names
-  const playerNames = ['Tú', 'Rival Derecha', 'Compañero', 'Rival Izquierda'];
+  const playerNames = [
+    tr('Tú', 'You'),
+    tr('Rival Derecha', 'Right Rival'),
+    tr('Compañero', 'Partner'),
+    tr('Rival Izquierda', 'Left Rival'),
+  ];
 
-  // Calculate playable tiles for a given hand
-  const getPlayableMoves = (hand: Tile[], ends: [number, number] | null) => {
-    if (!ends) {
-      // Dominican Rule: On the 1st hand of the entire match, mandatory double according to rule
-      if (handNumber === 1) {
-        const targetDouble = ruleFirstHandSalida === '00' ? 0 : 6;
-        const hasDouble = hand.find(([a, b]) => a === targetDouble && b === targetDouble);
-        if (hasDouble) {
-          return [{ tile: hasDouble, end: 'any' as const }];
-        }
-      }
-      // Subsequent hands: Salida Libre (any tile can open)
-      return hand.map((t) => ({ tile: t, end: 'any' as const }));
-    }
-    const moves: { tile: Tile; end: 'left' | 'right' | 'both' }[] = [];
-    hand.forEach((tile) => {
-      const matchesLeft = tile[0] === ends[0] || tile[1] === ends[0];
-      const matchesRight = tile[0] === ends[1] || tile[1] === ends[1];
-
-      if (matchesLeft && matchesRight && ends[0] !== ends[1]) {
-        moves.push({ tile, end: 'both' });
-      } else if (matchesLeft) {
-        moves.push({ tile, end: 'left' });
-      } else if (matchesRight) {
-        moves.push({ tile, end: 'right' });
-      }
-    });
-    return moves;
-  };
-
-  // Generate coach advice based on general competitive domino principles
+  // Generate coach advice via shared Dominican heuristic engine
   useEffect(() => {
     if (turn !== 0 || gameOver) {
       return;
     }
 
-    const myHand = hands[0];
-    if (myHand.length === 0) {
-      setCoachAdvice('');
-      setCoachOptions([]);
-      return;
-    }
-    const playable = getPlayableMoves(myHand, boardEnds);
-
-    if (!boardEnds) {
-      if (handNumber === 1) {
-        if (playable.length > 0) {
-          setCoachOptions([
-            {
-              tile: playable[0].tile,
-              label: `[${playable[0].tile[0]}:${playable[0].tile[1]}] Salida obligatoria Mano #1`,
-              total: 10,
-              breakdown: [{ label: 'Apertura oficial obligatoria (0–0)', pts: 10 }],
-            },
-          ]);
-        } else {
-          setCoachOptions([]);
-        }
-        const mandatoryLabel =
-          ruleFirstHandSalida === '00' ? 'el Doble Blanco [0:0] ("La Chiva")' : 'el Doble Seis [6:6]';
-        setCoachAdvice(
-          `🎯 Mano #1 del Partido (Salida Obligatoria): En el dominó dominicano, la primera jugada de todo el partido (0-0) es obligatoriamente con ${mandatoryLabel}.`
-        );
-        return;
-      }
-
-      // Salida Libre (2nd hand onwards): Score all tiles in hand for opening
-      const openingRanked = myHand
-        .map((t) => {
-          const isDouble = t[0] === t[1];
-          const suitA = myHand.filter(([a, b]) => a === t[0] || b === t[0]).length;
-          const suitB = isDouble ? suitA : myHand.filter(([a, b]) => a === t[1] || b === t[1]).length;
-          const maxSuit = Math.max(suitA, suitB);
-          const breakdown: { label: string; pts: number }[] = [];
-          let score = 0;
-
-          const suitPts = maxSuit * 3;
-          score += suitPts;
-          breakdown.push({ label: `Fuerza del número (${maxSuit} fichas)`, pts: suitPts });
-
-          if (isDouble) {
-            score += 4;
-            breakdown.push({ label: 'Salida con doble respaldado', pts: 4 });
-          }
-
-          const weightPts = Math.round(((t[0] + t[1]) / 3) * 10) / 10;
-          if (weightPts > 0) {
-            score += weightPts;
-            breakdown.push({ label: `Descarga ${t[0] + t[1]} puntos`, pts: weightPts });
-          }
-
-          return {
-            tile: t,
-            isDouble,
-            maxSuit,
-            total: Math.round(score * 10) / 10,
-            label: `[${t[0]}:${t[1]}] Salida libre`,
-            breakdown,
-          };
-        })
-        .sort((x, y) => y.total - x.total);
-
-      setCoachOptions(
-        openingRanked.map((o) => ({
-          tile: o.tile,
-          label: o.label,
-          total: o.total,
-          breakdown: o.breakdown,
-        }))
-      );
-
-      const best = openingRanked[0];
-      const reason = best.isDouble
-        ? `Tienes ${best.maxSuit} fichas del número ${best.tile[0]} incluyendo su doble [${best.tile[0]}:${best.tile[0]}]. En salida libre, salir con este doble impone tu monopolio.`
-        : `Salida libre con tu número más fuerte (${best.maxSuit} fichas) para armar tu juego.`;
-
-      setCoachAdvice(`🎯 Recomendación en Salida Libre (Mano #${handNumber}): Juega [${best.tile[0]}:${best.tile[1]}]. ${reason}`);
-      return;
-    }
-
-    if (playable.length === 0) {
-      setCoachOptions([]);
-      setCoachAdvice(`⚠️ No tienes fichas compatibles con [${boardEnds[0]}] ni [${boardEnds[1]}]. Debes pasar.`);
-      return;
-    }
-
-    // Score every (tile, end) option instead of taking the first playable tile
-    interface Option {
-      tile: Tile;
-      end: 'left' | 'right';
-      newEnd: number; // value left exposed on the side we play on
-      otherEnd: number;
-      score: number;
-      reasons: string[];
-      breakdown: { label: string; pts: number }[];
-    }
-    const options: Option[] = [];
-    const pips = (t: Tile) => t[0] + t[1];
-
-    playable.forEach((m) => {
-      const sides: ('left' | 'right')[] = m.end === 'both' ? ['left', 'right'] : [m.end as 'left' | 'right'];
-      sides.forEach((side) => {
-        const idx = side === 'left' ? 0 : 1;
-        const covered = boardEnds[idx];
-        const newEnd = m.tile[0] === covered ? m.tile[1] : m.tile[0];
-        const otherEnd = boardEnds[1 - idx];
-        const rest = myHand.filter(
-          (t) => !((t[0] === m.tile[0] && t[1] === m.tile[1]) || (t[0] === m.tile[1] && t[1] === m.tile[0]))
-        );
-        const owned = (n: number) => rest.filter((t) => t[0] === n || t[1] === n).length;
-        let score = 0;
-        const reasons: string[] = [];
-        const breakdown: { label: string; pts: number }[] = [];
-        const add = (label: string, pts: number) => {
-          score += pts;
-          if (pts !== 0) breakdown.push({ label, pts });
-        };
-
-        // 1. Leave ends on suits I hold (I keep control of the table)
-        const endsOwned = owned(newEnd) + (newEnd !== otherEnd ? owned(otherEnd) : 0);
-        add(`Fichas que conservas de las puntas (${endsOwned})`, endsOwned * 3);
-        if (newEnd === otherEnd && owned(newEnd) > 0) {
-          add('Cuadra la mesa (puntas iguales)', 4);
-          reasons.push(`cuadra la mesa a ${newEnd}s (ambas puntas iguales) y todavía tienes ${owned(newEnd)} ficha(s) de ${newEnd}`);
-        } else if (owned(newEnd) > 0) {
-          reasons.push(`deja la punta en ${newEnd}, número del que conservas ${owned(newEnd)} ficha(s)`);
-        }
-
-        // 2. Dump heavy tiles early (less risk in a tranque)
-        add(`Descarga ${pips(m.tile)} puntos`, Math.round((pips(m.tile) / 3) * 10) / 10);
-        if (pips(m.tile) >= 9) reasons.push('descarga una ficha pesada');
-
-        // 3. Doubles are hard to play later
-        if (m.tile[0] === m.tile[1]) {
-          add('Te quitas un doble', 3);
-          reasons.push('te quita un doble de la mano');
-        }
-
-        // 4. Use known passes: partner passed (index 2) -> avoid; next rival passed (index 1) -> exploit
-        if (passedSuits[2].includes(newEnd)) {
-          add('Compañero pasó a ese número', -5);
-          reasons.push(`ojo: tu compañero pasó a ${newEnd}s`);
-        }
-        if (passedSuits[1].includes(newEnd)) {
-          add('Rival siguiente pasó a ese número', 5);
-          reasons.push(`el rival que juega después de ti pasó a ${newEnd}s, así que probablemente vuelva a pasar`);
-        }
-        // Do not hand the next rival a suit they already showed strength in
-        if (passedSuits[3].includes(newEnd)) add('Rival anterior pasó a ese número', 1);
-
-        options.push({ tile: m.tile, end: side, newEnd, otherEnd, score, reasons, breakdown });
-      });
+    const salidaValues = board[centerIdx]?.tile ? [...board[centerIdx].tile] : [];
+    const evaluation = evaluateMovesForSeat({
+      seatIdx: 0,
+      hands,
+      boardEnds,
+      passedSuits,
+      handNumber,
+      ruleFirstHandSalida,
+      salidorIndex,
+      boardLength: board.length,
+      salidaValues,
+      lang,
     });
 
-    options.sort((x, y) => y.score - x.score);
-    setCoachOptions(
-      options.map((o) => ({
-        tile: o.tile,
-        label: `[${o.tile[0]}:${o.tile[1]}] por la ${o.end === 'left' ? 'izquierda' : 'derecha'} → puntas ${
-          o.end === 'left' ? o.newEnd : o.otherEnd
-        } y ${o.end === 'left' ? o.otherEnd : o.newEnd}`,
-        total: Math.round(o.score * 10) / 10,
-        breakdown: o.breakdown,
-      }))
-    );
-    const best = options[0];
-    const sideName = best.end === 'left' ? 'izquierda' : 'derecha';
-    const why = best.reasons.length > 0 ? best.reasons.join('; ') : 'es la opción más equilibrada';
-    setCoachAdvice(
-      `💡 Consejo del Coach: Juega [${best.tile[0]}:${best.tile[1]}] por la punta ${sideName} (${boardEnds[best.end === 'left' ? 0 : 1]}). Las puntas quedarían en ${best.end === 'left' ? best.newEnd : best.otherEnd} y ${best.end === 'left' ? best.otherEnd : best.newEnd}: ${why}.`
-    );
-  }, [turn, boardEnds, hands, gameOver, passedSuits]);
+    setCoachOptions(evaluation.options);
+    setCoachAdvice(evaluation.advice);
+  }, [turn, boardEnds, hands, gameOver, passedSuits, handNumber, ruleFirstHandSalida, salidorIndex, board, centerIdx, lang]);
 
-  // Execute a play
+  // Execute a play with explicit open-end seam validation and Web Audio feedback
   const makePlay = (playerIdx: number, tile: Tile, targetEnd: 'left' | 'right') => {
+    if (boardEnds) {
+      const innerCheck = targetEnd === 'left' ? boardEnds[0] : boardEnds[1];
+      if (tile[0] !== innerCheck && tile[1] !== innerCheck) {
+        return;
+      }
+    }
+
     const prevEnds = boardEnds;
     setConsecutivePasses(0);
+    playClackSound();
 
     // Remove tile from player hand
     const newHands = [...hands];
@@ -461,24 +332,32 @@ export const MatchSimulator: React.FC = () => {
       setFirstPassChecked(true);
     }
 
-    // Update board
+    // Update board with explicit inner/outer seam orientation
     let updatedEnds: [number, number];
     const nextOrder = board.length + 1;
     if (!boardEnds) {
       updatedEnds = [tile[0], tile[1]];
-      setBoard([{ tile, playedBy: playerIdx, playOrder: 1 }]);
+      setBoard([{ tile, playedBy: playerIdx, playOrder: 1, inner: tile[0], outer: tile[1] }]);
       setCenterIdx(0);
     } else if (targetEnd === 'left') {
-      const remainingVal = tile[0] === boardEnds[0] ? tile[1] : tile[0];
-      updatedEnds = [remainingVal, boardEnds[1]];
+      const inner = boardEnds[0];
+      const outer = tile[0] === inner ? tile[1] : tile[0];
+      updatedEnds = [outer, boardEnds[1]];
       // Orient so the matching half touches the chain (right half faces the chain)
-      setBoard([{ tile: [remainingVal, boardEnds[0]], playedBy: playerIdx, playOrder: nextOrder }, ...board]);
+      setBoard([
+        { tile: [outer, inner], playedBy: playerIdx, playOrder: nextOrder, inner, outer },
+        ...board,
+      ]);
       setCenterIdx((c) => c + 1);
     } else {
-      const remainingVal = tile[0] === boardEnds[1] ? tile[1] : tile[0];
-      updatedEnds = [boardEnds[0], remainingVal];
+      const inner = boardEnds[1];
+      const outer = tile[0] === inner ? tile[1] : tile[0];
+      updatedEnds = [boardEnds[0], outer];
       // Left half faces the chain
-      setBoard([...board, { tile: [boardEnds[1], remainingVal], playedBy: playerIdx, playOrder: nextOrder }]);
+      setBoard([
+        ...board,
+        { tile: [inner, outer], playedBy: playerIdx, playOrder: nextOrder, inner, outer },
+      ]);
     }
     setBoardEnds(updatedEnds);
     setPendingTile(null);
@@ -528,13 +407,25 @@ export const MatchSimulator: React.FC = () => {
       const extras: string[] = [];
       if (isCapicua && capicuaBonus > 0) extras.push(`¡CAPICÚA! (+${capicuaBonus} pts)`);
       if (capicuaBlockedByLimit) {
-        extras.push(`Capicúa sin bono (+0 pts extras: con ${currentTeamScore} pts o en tiro de meta no aplica para ganar)`);
+        extras.push(
+          tr(
+            `Capicúa sin bono (+0 pts extras: con ${currentTeamScore} pts o en tiro de meta no aplica para ganar)`,
+            `Capicúa without bonus (+0 extra pts: at ${currentTeamScore} pts or match-winning play, bonuses do not apply)`
+          )
+        );
       }
-      if (tiePts > 0) extras.push(`+${tiePts} pts de Mano Brava acumulados`);
+      if (tiePts > 0) {
+        extras.push(
+          tr(`+${tiePts} pts de Mano Brava acumulados`, `+${tiePts} carried Mano Brava pts`)
+        );
+      }
       const extraTag = extras.length > 0 ? ` [${extras.join(' • ')}]` : '';
 
       setGameOver(
-        `¡DOMINÓ! ${winnerName} se pegó y ganó la mano (+${ptsAwarded} pts para ${isOurTeam ? 'Nosotros' : 'Ellos'})${extraTag}.`
+        tr(
+          `¡DOMINÓ! ${winnerName} se pegó y ganó la mano (+${ptsAwarded} pts para ${isOurTeam ? 'Nosotros' : 'Ellos'})${extraTag}.`,
+          `DOMINO! ${winnerName} went out and won the hand (+${ptsAwarded} pts for ${isOurTeam ? 'Us' : 'Them'})${extraTag}.`
+        )
       );
       if (isOurTeam) {
         confetti({ particleCount: isCapicua ? 160 : 100, spread: 80, origin: { y: 0.6 } });
@@ -569,21 +460,30 @@ export const MatchSimulator: React.FC = () => {
       setFirstPassChecked(true);
       const salidorIsOurTeam = salidorIndex === 0 || salidorIndex === 2;
       const currentTeamScore = salidorIsOurTeam ? gameScores[0] : gameScores[1];
-      const teamLabel = salidorIsOurTeam ? 'Nosotros' : 'Ellos';
+      const teamLabel = salidorIsOurTeam ? tr('Nosotros', 'Us') : tr('Ellos', 'Them');
 
       if (ruleNoWinByBonus && currentTeamScore >= targetScore - 25) {
         setBonusBanner(
-          `⚠️ Paso en la salida de ${playerNames[playerIdx]}: No se suman los +25 pts extras porque ${teamLabel} tiene ${currentTeamScore} pts (con ${targetScore - 25}+ pts no aplican bonos para ganar el partido). Continúa el juego normal.`
+          tr(
+            `⚠️ Paso en la salida de ${playerNames[playerIdx]}: No se suman los +25 pts extras porque ${teamLabel} tiene ${currentTeamScore} pts (con ${targetScore - 25}+ pts no aplican bonos para ganar el partido). Continúa el juego normal.`,
+            `⚠️ First-pass on ${playerNames[playerIdx]}: No +25 bonus added since ${teamLabel} has ${currentTeamScore} pts (at ${targetScore - 25}+ pts bonuses cannot apply). Play continues normally.`
+          )
         );
       } else if (salidorIsOurTeam) {
         setGameScores((prev) => [prev[0] + 25, prev[1]]);
         setBonusBanner(
-          `⚡ ¡Paso en la salida! ${playerNames[playerIdx]} no pudo responder a la salida de ${playerNames[salidorIndex]}: +25 pts para Nosotros.`
+          tr(
+            `⚡ ¡Paso en la salida! ${playerNames[playerIdx]} no pudo responder a la salida de ${playerNames[salidorIndex]}: +25 pts para Nosotros.`,
+            `⚡ Lead Pass (+25)! ${playerNames[playerIdx]} passed on ${playerNames[salidorIndex]}'s opening lead: +25 pts for Us.`
+          )
         );
       } else {
         setGameScores((prev) => [prev[0], prev[1] + 25]);
         setBonusBanner(
-          `⚡ ¡Paso en la salida! ${playerNames[playerIdx]} no pudo responder a la salida de ${playerNames[salidorIndex]}: +25 pts para Ellos.`
+          tr(
+            `⚡ ¡Paso en la salida! ${playerNames[playerIdx]} no pudo responder a la salida de ${playerNames[salidorIndex]}: +25 pts para Ellos.`,
+            `⚡ Lead Pass (+25)! ${playerNames[playerIdx]} passed on ${playerNames[salidorIndex]}'s opening lead: +25 pts for Them.`
+          )
         );
       }
     }
@@ -594,21 +494,30 @@ export const MatchSimulator: React.FC = () => {
     if (ruleTriplePaso25 && nextConsecutivePasses === 3 && board.length > 1) {
       const isOurTeam = lastPlayerWhoPlayed === 0 || lastPlayerWhoPlayed === 2;
       const currentTeamScore = isOurTeam ? gameScores[0] : gameScores[1];
-      const teamLabel = isOurTeam ? 'Nosotros' : 'Ellos';
+      const teamLabel = isOurTeam ? tr('Nosotros', 'Us') : tr('Ellos', 'Them');
 
       if (ruleNoWinByBonus && currentTeamScore >= targetScore - 25) {
         setBonusBanner(
-          `⚠️ ¡Pase Corrido (Triple Paso)! No se suman los +25 pts extras porque ${teamLabel} tiene ${currentTeamScore} pts (con ${targetScore - 25}+ pts no aplican bonos para ganar el partido). Continúa el juego normal.`
+          tr(
+            `⚠️ ¡Pase Corrido (Triple Paso)! No se suman los +25 pts extras porque ${teamLabel} tiene ${currentTeamScore} pts (con ${targetScore - 25}+ pts no aplican bonos para ganar el partido). Continúa el juego normal.`,
+            `⚠️ Triple Pass! No +25 bonus added since ${teamLabel} has ${currentTeamScore} pts (at ${targetScore - 25}+ pts bonuses do not apply). Play continues normally.`
+          )
         );
       } else if (isOurTeam) {
         setGameScores((prev) => [prev[0] + 25, prev[1]]);
         setBonusBanner(
-          `⚡ ¡Pase Corrido (Triple Paso)! Los 3 jugadores pasaron consecutivamente. Vuelta limpia a ${playerNames[lastPlayerWhoPlayed]}: +25 pts para Nosotros.`
+          tr(
+            `⚡ ¡Pase Corrido (Triple Paso)! Los 3 jugadores pasaron consecutivamente. Vuelta limpia a ${playerNames[lastPlayerWhoPlayed]}: +25 pts para Nosotros.`,
+            `⚡ Triple Pass! All 3 opponents passed consecutively back to ${playerNames[lastPlayerWhoPlayed]}: +25 pts for Us.`
+          )
         );
       } else {
         setGameScores((prev) => [prev[0], prev[1] + 25]);
         setBonusBanner(
-          `⚡ ¡Pase Corrido (Triple Paso)! Los 3 jugadores pasaron consecutivamente. Vuelta limpia a ${playerNames[lastPlayerWhoPlayed]}: +25 pts para Ellos.`
+          tr(
+            `⚡ ¡Pase Corrido (Triple Paso)! Los 3 jugadores pasaron consecutivamente. Vuelta limpia a ${playerNames[lastPlayerWhoPlayed]}: +25 pts para Ellos.`,
+            `⚡ Triple Pass! All 3 opponents passed consecutively back to ${playerNames[lastPlayerWhoPlayed]}: +25 pts for Them.`
+          )
         );
       }
     }
@@ -626,7 +535,7 @@ export const MatchSimulator: React.FC = () => {
     // Check if all players are blocked (Tranque)
     let anyPlayerCanPlay = false;
     for (let i = 0; i < 4; i++) {
-      if (getPlayableMoves(currentHands[i], ends).length > 0) {
+      if (getPlayableMoves(currentHands[i], ends, handNumber, ruleFirstHandSalida).length > 0) {
         anyPlayerCanPlay = true;
         break;
       }
@@ -647,13 +556,16 @@ export const MatchSimulator: React.FC = () => {
         const closerIsOurTeam = closerIdx === 0 || closerIdx === 2;
 
         if (closerPts < opponentPts) {
-          const winnerTeamLabel = closerIsOurTeam ? 'Nosotros' : 'Ellos';
+          const winnerTeamLabel = closerIsOurTeam ? tr('Nosotros', 'Us') : tr('Ellos', 'Them');
           setLastWinnerIndex(closerIdx);
           if (tiePts > 0) setAccumulatedTiePoints(0);
           const totalPts = allFourPoints + tiePts;
-          const tieMsg = tiePts > 0 ? ` (+${tiePts} pts acumulados de Mano Brava)` : '';
+          const tieMsg = tiePts > 0 ? tr(` (+${tiePts} pts acumulados de Mano Brava)`, ` (+${tiePts} carried Mano Brava pts)`) : '';
           setGameOver(
-            `¡TRANQUE DOMINICANO! Cerró ${playerNames[closerIdx]} (${closerPts} pts) vs ${playerNames[nextOpponentIdx]} (${opponentPts} pts). Ganó ${winnerTeamLabel} y suma +${totalPts} pts (total de los 4 jugadores${tieMsg}).`
+            tr(
+              `¡TRANQUE DOMINICANO! Cerró ${playerNames[closerIdx]} (${closerPts} pts) vs ${playerNames[nextOpponentIdx]} (${opponentPts} pts). Ganó ${winnerTeamLabel} y suma +${totalPts} pts (total de los 4 jugadores${tieMsg}).`,
+              `DOMINICAN LOCK (TRANQUE)! ${playerNames[closerIdx]} (${closerPts} pts) vs ${playerNames[nextOpponentIdx]} (${opponentPts} pts). ${winnerTeamLabel} wins +${totalPts} pts (all 4 hands combined${tieMsg}).`
+            )
           );
           if (closerIsOurTeam) {
             confetti({ particleCount: 100, spread: 70 });
@@ -663,7 +575,7 @@ export const MatchSimulator: React.FC = () => {
           }
         } else if (opponentPts < closerPts) {
           const nextIsOurTeam = nextOpponentIdx === 0 || nextOpponentIdx === 2;
-          const winnerTeamLabel = nextIsOurTeam ? 'Nosotros' : 'Ellos';
+          const winnerTeamLabel = nextIsOurTeam ? tr('Nosotros', 'Us') : tr('Ellos', 'Them');
           const currentTeamScore = nextIsOurTeam ? gameScores[0] : gameScores[1];
           setLastWinnerIndex(nextOpponentIdx);
           if (tiePts > 0) setAccumulatedTiePoints(0);
@@ -676,10 +588,13 @@ export const MatchSimulator: React.FC = () => {
             );
           const penalty = canApplyPenalty ? 25 : 0;
           const totalPts = allFourPoints + penalty + tiePts;
-          const penaltyMsg = penalty > 0 ? ' [¡TRANCA CASTIGADA! +25 pts por trancar perdiendo]' : '';
-          const tieMsg = tiePts > 0 ? ` (+${tiePts} pts de Mano Brava)` : '';
+          const penaltyMsg = penalty > 0 ? tr(' [¡TRANCA CASTIGADA! +25 pts por trancar perdiendo]', ' [PUNISHED LOCK! +25 penalty pts for locking and losing]') : '';
+          const tieMsg = tiePts > 0 ? tr(` (+${tiePts} pts de Mano Brava)`, ` (+${tiePts} Mano Brava pts)`) : '';
           setGameOver(
-            `¡TRANQUE DOMINICANO! Cerró ${playerNames[closerIdx]} (${closerPts} pts) vs ${playerNames[nextOpponentIdx]} (${opponentPts} pts). Ganó ${winnerTeamLabel} y suma +${totalPts} pts${penaltyMsg}${tieMsg}.`
+            tr(
+              `¡TRANQUE DOMINICANO! Cerró ${playerNames[closerIdx]} (${closerPts} pts) vs ${playerNames[nextOpponentIdx]} (${opponentPts} pts). Ganó ${winnerTeamLabel} y suma +${totalPts} pts${penaltyMsg}${tieMsg}.`,
+              `DOMINICAN LOCK (TRANQUE)! ${playerNames[closerIdx]} (${closerPts} pts) vs ${playerNames[nextOpponentIdx]} (${opponentPts} pts). ${winnerTeamLabel} wins +${totalPts} pts${penaltyMsg}${tieMsg}.`
+            )
           );
           if (nextIsOurTeam) {
             confetti({ particleCount: 100, spread: 70 });
@@ -693,16 +608,22 @@ export const MatchSimulator: React.FC = () => {
             setAccumulatedTiePoints((prev) => prev + allFourPoints);
             setLastWinnerIndex(closerIdx);
             setGameOver(
-              `¡MANO BRAVA (TRANQUE EMPATADO)! ${playerNames[closerIdx]} y ${playerNames[nextOpponentIdx]} empataron a ${closerPts} pts. Nadie anota y los ${allFourPoints} pts se acumulan para la próxima mano.`
+              tr(
+                `¡MANO BRAVA (TRANQUE EMPATADO)! ${playerNames[closerIdx]} y ${playerNames[nextOpponentIdx]} empataron a ${closerPts} pts. Nadie anota y los ${allFourPoints} pts se acumulan para la próxima mano.`,
+                `TIED LOCK (MANO BRAVA)! ${playerNames[closerIdx]} and ${playerNames[nextOpponentIdx]} tied at ${closerPts} pts. Zero awarded now—${allFourPoints} pts carry over to the next hand.`
+              )
             );
           } else {
-            const winnerTeamLabel = closerIsOurTeam ? 'Nosotros' : 'Ellos';
+            const winnerTeamLabel = closerIsOurTeam ? tr('Nosotros', 'Us') : tr('Ellos', 'Them');
             setLastWinnerIndex(closerIdx);
             if (tiePts > 0) setAccumulatedTiePoints(0);
             const totalPts = allFourPoints + tiePts;
-            const tieMsg = tiePts > 0 ? ` (+${tiePts} pts de Mano Brava)` : '';
+            const tieMsg = tiePts > 0 ? tr(` (+${tiePts} pts de Mano Brava)`, ` (+${tiePts} Mano Brava pts)`) : '';
             setGameOver(
-              `¡TRANQUE EMPATADO! Empate a ${closerPts} pts. Por regla oficial FEDODO gana quien cerró (${playerNames[closerIdx]}). Suma +${totalPts} pts para ${winnerTeamLabel}${tieMsg}.`
+              tr(
+                `¡TRANQUE EMPATADO! Empate a ${closerPts} pts. Por regla oficial FEDODO gana quien cerró (${playerNames[closerIdx]}). Suma +${totalPts} pts para ${winnerTeamLabel}${tieMsg}.`,
+                `TIED LOCK! Tied at ${closerPts} pts. By official FEDODO rules, the closer (${playerNames[closerIdx]}) wins +${totalPts} pts for ${winnerTeamLabel}${tieMsg}.`
+              )
             );
             if (closerIsOurTeam) {
               confetti({ particleCount: 100, spread: 70 });
@@ -722,9 +643,12 @@ export const MatchSimulator: React.FC = () => {
           setLastWinnerIndex(winnerIdx);
           if (tiePts > 0) setAccumulatedTiePoints(0);
           const totalPts = allFourPoints + tiePts;
-          const tieMsg = tiePts > 0 ? ` (+${tiePts} pts acumulados de Mano Brava)` : '';
+          const tieMsg = tiePts > 0 ? tr(` (+${tiePts} pts acumulados de Mano Brava)`, ` (+${tiePts} carried Mano Brava pts)`) : '';
           setGameOver(
-            `¡TRANQUE POR PAREJAS! Ganó tu equipo (${teamUsPoints} vs ${teamThemPoints} pts) y suma +${totalPts} pts (total de los 4 jugadores${tieMsg}).`
+            tr(
+              `¡TRANQUE POR PAREJAS! Ganó tu equipo (${teamUsPoints} vs ${teamThemPoints} pts) y suma +${totalPts} pts (total de los 4 jugadores${tieMsg}).`,
+              `PARTNERSHIP LOCK! Your team won (${teamUsPoints} vs ${teamThemPoints} pts) for +${totalPts} pts (all 4 hands${tieMsg}).`
+            )
           );
           confetti({ particleCount: 100, spread: 70 });
           setGameScores((prev) => [prev[0] + totalPts, prev[1]]);
@@ -733,9 +657,12 @@ export const MatchSimulator: React.FC = () => {
           setLastWinnerIndex(winnerIdx);
           if (tiePts > 0) setAccumulatedTiePoints(0);
           const totalPts = allFourPoints + tiePts;
-          const tieMsg = tiePts > 0 ? ` (+${tiePts} pts acumulados de Mano Brava)` : '';
+          const tieMsg = tiePts > 0 ? tr(` (+${tiePts} pts acumulados de Mano Brava)`, ` (+${tiePts} carried Mano Brava pts)`) : '';
           setGameOver(
-            `¡TRANQUE POR PAREJAS! Ganó el equipo rival (${teamThemPoints} vs ${teamUsPoints} pts) y suma +${totalPts} pts (total de los 4 jugadores${tieMsg}).`
+            tr(
+              `¡TRANQUE POR PAREJAS! Ganó el equipo rival (${teamThemPoints} vs ${teamUsPoints} pts) y suma +${totalPts} pts (total de los 4 jugadores${tieMsg}).`,
+              `PARTNERSHIP LOCK! Opponents won (${teamThemPoints} vs ${teamUsPoints} pts) for +${totalPts} pts (all 4 hands${tieMsg}).`
+            )
           );
           setGameScores((prev) => [prev[0], prev[1] + totalPts]);
         } else {
@@ -743,16 +670,22 @@ export const MatchSimulator: React.FC = () => {
             setAccumulatedTiePoints((prev) => prev + allFourPoints);
             setLastWinnerIndex(closerIdx);
             setGameOver(
-              `¡MANO BRAVA (TRANQUE EMPATADO)! Empate a ${teamUsPoints} pts por pareja. Nadie anota y los ${allFourPoints} pts se acumulan para la próxima mano.`
+              tr(
+                `¡MANO BRAVA (TRANQUE EMPATADO)! Empate a ${teamUsPoints} pts por pareja. Nadie anota y los ${allFourPoints} pts se acumulan para la próxima mano.`,
+                `TIED LOCK (MANO BRAVA)! Pairs tied at ${teamUsPoints} pts. Zero awarded—${allFourPoints} pts carry over to the next hand.`
+              )
             );
           } else {
             const closerIsOurTeam = closerIdx === 0 || closerIdx === 2;
-            const winnerTeamLabel = closerIsOurTeam ? 'tu equipo' : 'el equipo rival';
+            const winnerTeamLabel = closerIsOurTeam ? tr('tu equipo', 'your team') : tr('el equipo rival', 'the opposing team');
             setLastWinnerIndex(closerIdx);
             if (tiePts > 0) setAccumulatedTiePoints(0);
             const totalPts = allFourPoints + tiePts;
             setGameOver(
-              `¡TRANQUE EMPATADO! Empate a ${teamUsPoints} pts por pareja. Gana quien cerró (${playerNames[closerIdx]}). Suma +${totalPts} pts para ${winnerTeamLabel}.`
+              tr(
+                `¡TRANQUE EMPATADO! Empate a ${teamUsPoints} pts por pareja. Gana quien cerró (${playerNames[closerIdx]}). Suma +${totalPts} pts para ${winnerTeamLabel}.`,
+                `TIED LOCK! Pairs tied at ${teamUsPoints} pts. Closer (${playerNames[closerIdx]}) takes +${totalPts} pts for ${winnerTeamLabel}.`
+              )
             );
             if (closerIsOurTeam) {
               confetti({ particleCount: 100, spread: 70 });
@@ -769,28 +702,48 @@ export const MatchSimulator: React.FC = () => {
     setTurn(nextPlayer);
   };
 
-  // Automated AI turn for players 1, 2, 3
+  // Automated AI turn for players 1, 2, 3 using Dominican Tactical Heuristic
   useEffect(() => {
     if (turn === 0 || gameOver) return;
 
     const timer = setTimeout(() => {
       const currentHand = hands[turn];
-      const playable = getPlayableMoves(currentHand, boardEnds);
+      const playable = getPlayableMoves(currentHand, boardEnds, handNumber, ruleFirstHandSalida);
 
       if (playable.length === 0) {
         handlePass(turn);
       } else {
-        // AI chooses a move
-        const choice = playable[Math.floor(Math.random() * playable.length)];
-        const targetEnd = choice.end === 'both' ? 'left' : choice.end === 'any' ? 'left' : choice.end;
-        makePlay(turn, choice.tile, targetEnd);
+        const salidaValues = board[centerIdx]?.tile ? [...board[centerIdx].tile] : [];
+        const evaluation = evaluateMovesForSeat({
+          seatIdx: turn,
+          hands,
+          boardEnds,
+          passedSuits,
+          handNumber,
+          ruleFirstHandSalida,
+          salidorIndex,
+          boardLength: board.length,
+          salidaValues,
+          lang,
+        });
+
+        if (evaluation.options.length > 0) {
+          const best = evaluation.options[0];
+          const targetEnd = best.end === 'any' ? 'left' : best.end;
+          makePlay(turn, best.tile, targetEnd);
+        } else {
+          const fallback = playable[0];
+          const targetEnd =
+            fallback.end === 'both' || fallback.end === 'any' ? 'left' : fallback.end;
+          makePlay(turn, fallback.tile, targetEnd);
+        }
       }
     }, 900);
 
     return () => clearTimeout(timer);
-  }, [turn, boardEnds, hands, gameOver]);
+  }, [turn, boardEnds, hands, gameOver, passedSuits, handNumber, ruleFirstHandSalida, salidorIndex, board, centerIdx]);
 
-  const playableForMe = getPlayableMoves(hands[0], boardEnds);
+  const playableForMe = getPlayableMoves(hands[0], boardEnds, handNumber, ruleFirstHandSalida);
 
   // Live HUD Calculations (Tactical Coach & 28-Tile Probability Matrix)
   const playedTileKeys = new Set(
@@ -849,13 +802,15 @@ export const MatchSimulator: React.FC = () => {
           <div className="md:col-span-3 flex items-center justify-between pb-2 border-b border-slate-800">
             <div className="flex items-center gap-2">
               <Settings2 className="w-4 h-4 text-blue-400" />
-              <span className="font-bold text-white text-sm">Configuración de Reglas Dominicanas</span>
+              <span className="font-bold text-white text-sm">
+                {tr('Configuración de Reglas Dominicanas', 'Dominican Rules Configuration')}
+              </span>
             </div>
             <button
               onClick={() => setShowRulesConfig(false)}
               className="w-7 h-7 rounded-lg bg-rose-500/20 hover:bg-rose-600 text-rose-400 hover:text-white border border-rose-500/50 flex items-center justify-center transition shadow-sm"
-              title="Cerrar panel de reglas"
-              aria-label="Cerrar panel de reglas"
+              title={tr('Cerrar panel de reglas', 'Close rules panel')}
+              aria-label={tr('Cerrar panel de reglas', 'Close rules panel')}
             >
               <X className="w-4 h-4 stroke-[2.5]" />
             </button>
@@ -865,24 +820,27 @@ export const MatchSimulator: React.FC = () => {
           <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 flex flex-col justify-between gap-2">
             <div>
               <div className="font-bold text-white flex items-center justify-between">
-                <span>Paso en la Salida (+25 pts)</span>
+                <span>{tr('Paso en la Salida (+25 pts)', 'Opening Lead Pass (+25 pts)')}</span>
                 <span
                   className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                     ruleFirstPass25 ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-400'
                   }`}
                 >
-                  {ruleFirstPass25 ? 'ACTIVO' : 'INACTIVO'}
+                  {ruleFirstPass25 ? tr('ACTIVO', 'ACTIVE') : tr('INACTIVO', 'INACTIVE')}
                 </span>
               </div>
               <p className="text-slate-400 text-[11px] mt-1">
-                Si el jugador que sigue al salidor no tiene fichas para responder en el primer turno, la pareja del salidor gana 25 pts inmediatos.
+                {tr(
+                  'Si el jugador que sigue al salidor no tiene fichas para responder en el primer turno, la pareja del salidor gana 25 pts inmediatos.',
+                  'If the player immediately following the leader passes on the first turn, the leader’s pair immediately scores +25 pts.'
+                )}
               </p>
             </div>
             <button
               onClick={() => setRuleFirstPass25(!ruleFirstPass25)}
               className="w-full py-1.5 rounded-lg font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 transition"
             >
-              {ruleFirstPass25 ? 'Desactivar regla' : 'Activar regla'}
+              {ruleFirstPass25 ? tr('Desactivar regla', 'Disable rule') : tr('Activar regla', 'Enable rule')}
             </button>
           </div>
 
@@ -890,17 +848,20 @@ export const MatchSimulator: React.FC = () => {
           <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 flex flex-col justify-between gap-2">
             <div>
               <div className="font-bold text-white flex items-center justify-between">
-                <span>Bono de Capicúa</span>
+                <span>{tr('Bono de Capicúa', 'Capicúa Bonus')}</span>
                 <span
                   className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                     ruleCapicuaBonus > 0 ? 'bg-amber-500/20 text-amber-300' : 'bg-slate-800 text-slate-400'
                   }`}
                 >
-                  {ruleCapicuaBonus > 0 ? `+${ruleCapicuaBonus} PTS` : 'DESACTIVADO'}
+                  {ruleCapicuaBonus > 0 ? `+${ruleCapicuaBonus} PTS` : tr('DESACTIVADO', 'DISABLED')}
                 </span>
               </div>
               <p className="text-slate-400 text-[11px] mt-1">
-                Pegarse con ficha mixta (no doble) que encaja en ambas puntas abiertas de la mesa.
+                {tr(
+                  'Pegarse con ficha mixta (no doble) que encaja en ambas puntas abiertas de la mesa.',
+                  'Going out on the last mixed (non-double) tile matching both open board ends.'
+                )}
               </p>
             </div>
             <div className="flex gap-1.5">
@@ -928,24 +889,27 @@ export const MatchSimulator: React.FC = () => {
           <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 flex flex-col justify-between gap-2">
             <div>
               <div className="font-bold text-white flex items-center justify-between">
-                <span>Triple Paso (+25 pts)</span>
+                <span>{tr('Triple Paso (+25 pts)', 'Triple Pass (+25 pts)')}</span>
                 <span
                   className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                     ruleTriplePaso25 ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-400'
                   }`}
                 >
-                  {ruleTriplePaso25 ? 'ACTIVO' : 'INACTIVO'}
+                  {ruleTriplePaso25 ? tr('ACTIVO', 'ACTIVE') : tr('INACTIVO', 'INACTIVE')}
                 </span>
               </div>
               <p className="text-slate-400 text-[11px] mt-1">
-                Cuando 3 jugadores pasan de largo consecutivamente y le dan la vuelta limpia a la mesa al mismo jugador.
+                {tr(
+                  'Cuando 3 jugadores pasan de largo consecutivamente y le dan la vuelta limpia a la mesa al mismo jugador.',
+                  'When 3 players pass consecutively, wrapping a clean turn back to the last player (+25 pts).'
+                )}
               </p>
             </div>
             <button
               onClick={() => setRuleTriplePaso25(!ruleTriplePaso25)}
               className="w-full py-1.5 rounded-lg font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 transition"
             >
-              {ruleTriplePaso25 ? 'Desactivar regla' : 'Activar regla'}
+              {ruleTriplePaso25 ? tr('Desactivar regla', 'Disable rule') : tr('Activar regla', 'Enable rule')}
             </button>
           </div>
 
@@ -953,15 +917,23 @@ export const MatchSimulator: React.FC = () => {
           <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 flex flex-col justify-between gap-2">
             <div>
               <div className="font-bold text-white flex items-center justify-between">
-                <span>Modo de Tranque (Cierre)</span>
+                <span>{tr('Modo de Tranque (Cierre)', 'Lock Mode (Tranque)')}</span>
                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300">
-                  {ruleTranqueMode === 'individual' ? 'DOMINICANO (1 vs 1)' : 'PAREJAS (2 vs 2)'}
+                  {ruleTranqueMode === 'individual'
+                    ? tr('DOMINICANO (1 vs 1)', 'DOMINICAN (1v1)')
+                    : tr('PAREJAS (2 vs 2)', 'PAIRS (2v2)')}
                 </span>
               </div>
               <p className="text-slate-400 text-[11px] mt-1">
                 {ruleTranqueMode === 'individual'
-                  ? 'Se comparan solo los puntos de quien trancó vs el que le sigue (de la pareja contraria). El ganador suma los de los 4.'
-                  : 'Se comparan los puntos totales sumados de ambas parejas completas.'}
+                  ? tr(
+                      'Se comparan solo los puntos de quien trancó vs el que le sigue (de la pareja contraria). El ganador suma los de los 4.',
+                      'Compares only the closer’s pips vs the next rival in turn. The winning side collects all 4 players’ remaining pips.'
+                    )
+                  : tr(
+                      'Se comparan los puntos totales sumados de ambas parejas completas.',
+                      'Compares combined pip totals across both complete partnerships.'
+                    )}
               </p>
             </div>
             <div className="flex gap-2">
@@ -973,7 +945,7 @@ export const MatchSimulator: React.FC = () => {
                     : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                 }`}
               >
-                Dominicano (1 vs 1)
+                {tr('Dominicano (1 vs 1)', 'Dominican (1v1)')}
               </button>
               <button
                 onClick={() => setRuleTranqueMode('parejas')}
@@ -983,7 +955,7 @@ export const MatchSimulator: React.FC = () => {
                     : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                 }`}
               >
-                Por Parejas
+                {tr('Por Parejas', 'By Pairs')}
               </button>
             </div>
           </div>
@@ -992,15 +964,23 @@ export const MatchSimulator: React.FC = () => {
           <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 flex flex-col justify-between gap-2">
             <div>
               <div className="font-bold text-white flex items-center justify-between">
-                <span>Empate en Tranque</span>
+                <span>{tr('Empate en Tranque', 'Tied Lock Resolution')}</span>
                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-300">
-                  {ruleTranqueEmpateMode === 'cerrador' ? 'OFICIAL FEDODO' : 'MANO BRAVA'}
+                  {ruleTranqueEmpateMode === 'cerrador'
+                    ? tr('OFICIAL FEDODO', 'OFFICIAL FEDODO')
+                    : 'MANO BRAVA'}
                 </span>
               </div>
               <p className="text-slate-400 text-[11px] mt-1">
                 {ruleTranqueEmpateMode === 'cerrador'
-                  ? 'Regla de Torneo: Si hay empate exacto de puntos, gana quien tuvo la iniciativa de cerrar.'
-                  : 'Regla Callejera: Los puntos de la mano se acumulan y los cobra quien gane la siguiente mano.'}
+                  ? tr(
+                      'Regla de Torneo: Si hay empate exacto de puntos, gana quien tuvo la iniciativa de cerrar.',
+                      'Tournament Rule: On an exact pip tie, the player who closed the board wins the lock.'
+                    )
+                  : tr(
+                      'Regla Callejera: Los puntos de la mano se acumulan y los cobra quien gane la siguiente mano.',
+                      'Street Rule: Tied lock points roll over and are awarded to whoever wins the next hand.'
+                    )}
               </p>
             </div>
             <div className="flex gap-2">
@@ -1012,7 +992,7 @@ export const MatchSimulator: React.FC = () => {
                     : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                 }`}
               >
-                Gana Cerrador
+                {tr('Gana Cerrador', 'Closer Wins')}
               </button>
               <button
                 onClick={() => setRuleTranqueEmpateMode('manobrava')}
@@ -1031,24 +1011,29 @@ export const MatchSimulator: React.FC = () => {
           <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 flex flex-col justify-between gap-2">
             <div>
               <div className="font-bold text-white flex items-center justify-between">
-                <span>Tranca Castigada</span>
+                <span>{tr('Tranca Castigada', 'Punished Lock')}</span>
                 <span
                   className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                     ruleTrancaCastigada ? 'bg-rose-500/20 text-rose-300' : 'bg-slate-800 text-slate-400'
                   }`}
                 >
-                  {ruleTrancaCastigada ? 'ACTIVA (+25 PTS)' : 'INACTIVA'}
+                  {ruleTrancaCastigada ? tr('ACTIVA (+25 PTS)', 'ACTIVE (+25 PTS)') : tr('INACTIVA', 'INACTIVE')}
                 </span>
               </div>
               <p className="text-slate-400 text-[11px] mt-1">
-                Si un jugador decide trancar la mesa pero pierde el conteo, se le penaliza otorgando +25 pts extra a los rivales.
+                {tr(
+                  'Si un jugador decide trancar la mesa pero pierde el conteo, se le penaliza otorgando +25 pts extra a los rivales.',
+                  'If the closing player loses the lock pip count, opponents receive an extra +25 penalty points.'
+                )}
               </p>
             </div>
             <button
               onClick={() => setRuleTrancaCastigada(!ruleTrancaCastigada)}
               className="w-full py-1.5 rounded-lg font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 transition"
             >
-              {ruleTrancaCastigada ? 'Desactivar castigo' : 'Activar castigo (+25 pts)'}
+              {ruleTrancaCastigada
+                ? tr('Desactivar castigo', 'Disable penalty')
+                : tr('Activar castigo (+25 pts)', 'Enable penalty (+25 pts)')}
             </button>
           </div>
 
@@ -1056,13 +1041,18 @@ export const MatchSimulator: React.FC = () => {
           <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 flex flex-col justify-between gap-2">
             <div>
               <div className="font-bold text-white flex items-center justify-between">
-                <span>Salida Mano #1</span>
+                <span>{tr('Salida Mano #1', 'Hand #1 Mandatory Lead')}</span>
                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300">
-                  {ruleFirstHandSalida === '66' ? 'DOBLE SEIS [6:6]' : 'DOBLE BLANCO [0:0]'}
+                  {ruleFirstHandSalida === '66'
+                    ? tr('DOBLE SEIS [6:6]', 'DOUBLE SIX [6:6]')
+                    : tr('DOBLE BLANCO [0:0]', 'DOUBLE BLANK [0:0]')}
                 </span>
               </div>
               <p className="text-slate-400 text-[11px] mt-1">
-                Ficha obligatoria para abrir el primer juego (0-0) del partido completo.
+                {tr(
+                  'Ficha obligatoria para abrir el primer juego (0-0) del partido completo.',
+                  'Mandatory opening tile for the very first hand (0-0) of the match.'
+                )}
               </p>
             </div>
             <div className="flex gap-2">
@@ -1084,7 +1074,7 @@ export const MatchSimulator: React.FC = () => {
                     : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                 }`}
               >
-                [6:6] Oficial
+                {tr('[6:6] Oficial', '[6:6] Official')}
               </button>
               <button
                 onClick={() => {
@@ -1113,13 +1103,16 @@ export const MatchSimulator: React.FC = () => {
           <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 flex flex-col justify-between gap-2">
             <div>
               <div className="font-bold text-white flex items-center justify-between">
-                <span>Meta del Partido</span>
+                <span>{tr('Meta del Partido', 'Match Target Score')}</span>
                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-300">
-                  {targetScore} PUNTOS
+                  {targetScore} {tr('PUNTOS', 'POINTS')}
                 </span>
               </div>
               <p className="text-slate-400 text-[11px] mt-1">
-                Límite de puntos acordado para ganar el partido completo.
+                {tr(
+                  'Límite de puntos acordado para ganar el partido completo.',
+                  'Agreed point target required to win the match.'
+                )}
               </p>
             </div>
             <div className="flex gap-2">
@@ -1131,7 +1124,7 @@ export const MatchSimulator: React.FC = () => {
                     : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                 }`}
               >
-                A 100 Pts
+                {tr('A 100 Pts', 'To 100 Pts')}
               </button>
               <button
                 onClick={() => setTargetScore(200)}
@@ -1141,12 +1134,12 @@ export const MatchSimulator: React.FC = () => {
                     : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                 }`}
               >
-                A 200 Pts
+                {tr('A 200 Pts', 'To 200 Pts')}
               </button>
               <button
                 onClick={resetFullMatch}
                 className="px-2.5 py-1.5 rounded-lg font-bold bg-rose-950/80 hover:bg-rose-900 text-rose-200 border border-rose-700/50 transition"
-                title="Reiniciar marcador a 0 - 0"
+                title={tr('Reiniciar marcador a 0 - 0', 'Reset match score to 0 - 0')}
               >
                 0-0
               </button>
@@ -1163,18 +1156,21 @@ export const MatchSimulator: React.FC = () => {
                     ruleZapatoAlert ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-400'
                   }`}
                 >
-                  {ruleZapatoAlert ? 'ACTIVO' : 'INACTIVO'}
+                  {ruleZapatoAlert ? tr('ACTIVO', 'ACTIVE') : tr('INACTIVO', 'INACTIVE')}
                 </span>
               </div>
               <p className="text-slate-400 text-[11px] mt-1">
-                Alerta y celebración especial cuando una pareja gana el partido completo blanqueando al rival (ej. 100-0 o 200-0).
+                {tr(
+                  'Alerta y celebración especial cuando una pareja gana el partido completo blanqueando al rival (ej. 100-0 o 200-0).',
+                  'Special shutout banner when one pair sweeps the entire match holding opponents at zero (e.g., 100-0 or 200-0).'
+                )}
               </p>
             </div>
             <button
               onClick={() => setRuleZapatoAlert(!ruleZapatoAlert)}
               className="w-full py-1.5 rounded-lg font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 transition"
             >
-              {ruleZapatoAlert ? 'Desactivar alerta' : 'Activar alerta'}
+              {ruleZapatoAlert ? tr('Desactivar alerta', 'Disable alert') : tr('Activar alerta', 'Enable alert')}
             </button>
           </div>
 
@@ -1182,38 +1178,52 @@ export const MatchSimulator: React.FC = () => {
           <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 flex flex-col justify-between gap-2">
             <div>
               <div className="font-bold text-white flex items-center justify-between">
-                <span>Límite de Bono ({targetScore - 25}+ pts)</span>
+                <span>{tr(`Límite de Bono (${targetScore - 25}+ pts)`, `Bonus Cap (${targetScore - 25}+ pts)`)}</span>
                 <span
                   className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                     ruleNoWinByBonus ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-400'
                   }`}
                 >
-                  {ruleNoWinByBonus ? 'ACTIVO' : 'INACTIVO'}
+                  {ruleNoWinByBonus ? tr('ACTIVO', 'ACTIVE') : tr('INACTIVO', 'INACTIVE')}
                 </span>
               </div>
               <p className="text-slate-400 text-[11px] mt-1">
-                No se gana el partido con puntos extras (Capicúa, Paso en Salida o Triple Paso). Con {targetScore - 25}+ pts no se suman; con ≤{targetScore - 26} pts sí aplican.
+                {tr(
+                  `No se gana el partido con puntos extras (Capicúa, Paso en Salida o Triple Paso). Con ${targetScore - 25}+ pts no se suman; con ≤${targetScore - 26} pts sí aplican.`,
+                  `Matches cannot be closed out by bonus points (Capicúa, Lead Pass, Triple Pass). Blocked at ${targetScore - 25}+ pts; active at ≤${targetScore - 26} pts.`
+                )}
               </p>
             </div>
             <button
               onClick={() => setRuleNoWinByBonus(!ruleNoWinByBonus)}
               className="w-full py-1.5 rounded-lg font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 transition"
             >
-              {ruleNoWinByBonus ? 'Desactivar límite' : 'Activar límite'}
+              {ruleNoWinByBonus ? tr('Desactivar límite', 'Disable cap') : tr('Activar límite', 'Enable cap')}
             </button>
           </div>
 
           {/* Rule 11: Salida Rule Info Banner */}
           <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 flex flex-col justify-between gap-2 md:col-span-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="font-bold text-white text-xs">Orden de Salida ("El que gana sale")</span>
+              <span className="font-bold text-white text-xs">
+                {tr('Orden de Salida ("El que gana sale")', 'Opening Lead Order ("Winner Leads")')}
+              </span>
               <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300">
-                REGLA OFICIAL FIJA
+                {tr('REGLA OFICIAL FIJA', 'FIXED OFFICIAL RULE')}
               </span>
             </div>
             <p className="text-slate-400 text-[11px] leading-relaxed">
-              • <b>Mano #1:</b> Sale quien tenga la ficha obligatoria configurada ({ruleFirstHandSalida === '00' ? '[0:0] La Chiva' : '[6:6] Doble Seis'}).<br />
-              • <b>Mano #2 en adelante:</b> Siempre sale de primero el <b>último jugador individual que ganó la mano anterior</b> (por pegada o por tranque con menos puntos).
+              {lang === 'en' ? (
+                <>
+                  • <b>Hand #1:</b> Whoever holds the configured mandatory lead opens ({ruleFirstHandSalida === '00' ? '[0:0] La Chiva' : '[6:6] Double Six'}).<br />
+                  • <b>Hand #2 onward:</b> The <b>individual player who won the previous hand</b> always leads first.
+                </>
+              ) : (
+                <>
+                  • <b>Mano #1:</b> Sale quien tenga la ficha obligatoria configurada ({ruleFirstHandSalida === '00' ? '[0:0] La Chiva' : '[6:6] Doble Seis'}).<br />
+                  • <b>Mano #2 en adelante:</b> Siempre sale de primero el <b>último jugador individual que ganó la mano anterior</b> (por pegada o por tranque con menos puntos).
+                </>
+              )}
             </p>
           </div>
         </div>
@@ -1227,7 +1237,7 @@ export const MatchSimulator: React.FC = () => {
             onClick={() => setBonusBanner(null)}
             className="text-emerald-400 hover:text-white text-[11px] underline ml-4"
           >
-            Cerrar
+            {tr('Cerrar', 'Dismiss')}
           </button>
         </div>
       )}
@@ -1237,46 +1247,55 @@ export const MatchSimulator: React.FC = () => {
         <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/20 via-amber-400/20 to-emerald-500/20 border-2 border-amber-400 text-center space-y-2 shadow-xl">
           <div className="text-base font-black text-amber-300">{matchWinner}</div>
           <div className="text-xs text-slate-300 font-mono">
-            Marcador Final: Nosotros {gameScores[0]} pts — Ellos {gameScores[1]} pts (Meta: {targetScore} pts)
+            {tr(
+              `Marcador Final: Nosotros ${gameScores[0]} pts — Ellos ${gameScores[1]} pts (Meta: ${targetScore} pts)`,
+              `Final Score: Us ${gameScores[0]} pts — Them ${gameScores[1]} pts (Target: ${targetScore} pts)`
+            )}
           </div>
           <button
             onClick={resetFullMatch}
             className="px-4 py-1.5 rounded-xl bg-amber-400 text-slate-950 font-extrabold text-xs hover:bg-amber-300 transition shadow"
           >
-            Iniciar Nuevo Partido (0 - 0)
+            {tr('Iniciar Nuevo Partido (0 - 0)', 'Start New Match (0 - 0)')}
           </button>
         </div>
       )}
 
       {/* 3-Column Tournament Cockpit Layout (Left HUD, Center Table Arena, Right Matrix HUD) */}
       <div className="w-full grid grid-cols-1 xl:grid-cols-12 gap-3 sm:gap-4 items-start">
-        {/* LEFT HUD: Tactical Coach (LIVE) */}
+        {/* LEFT HUD: Entrenador Táctico (EN VIVO) */}
         <div className="xl:col-span-3 flex flex-col gap-3 order-2 xl:order-1">
           <div className="p-4 rounded-2xl glass-panel-elevated space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-black text-white tracking-wide">Tactical Coach</h3>
+                  <h3 className="text-sm font-black text-white tracking-wide">
+                    {tr('Entrenador Táctico', 'Tactical Coach')}
+                  </h3>
                   <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[9px] font-black tracking-wider flex items-center gap-1 border border-emerald-500/40">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    LIVE
+                    {tr('EN VIVO', 'LIVE')}
                   </span>
                 </div>
-                <p className="text-[10px] text-slate-400">Dominican domino strategy</p>
+                <p className="text-[10px] text-slate-400">
+                  {tr('Estrategia de dominó dominicano', 'Dominican dominoes strategy')}
+                </p>
               </div>
             </div>
 
             {/* La Salida Section */}
             <div className="p-3 rounded-xl bg-slate-950/60 border border-white/[0.06] space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-200">La Salida</span>
-                <span className="text-[10px] text-amber-400 font-mono font-bold">Salidor: {playerNames[salidorIndex]}</span>
+                <span className="text-xs font-bold text-slate-200">{tr('La Salida', 'Opening Lead')}</span>
+                <span className="text-[10px] text-amber-400 font-mono font-bold">
+                  {tr('Salidor:', 'Leader:')} {playerNames[salidorIndex]}
+                </span>
               </div>
-              <p className="text-[10px] text-slate-400">Dominican domino strategy</p>
+              <p className="text-[10px] text-slate-400">{tr('Control de pinta dominante', 'Dominant suit control')}</p>
               <div className="space-y-1">
                 <div className="flex justify-between text-[10px] font-mono">
-                  <span className="text-emerald-400">Pinta Dominante: {salidaPct}%</span>
-                  <span className="text-slate-400">Rival: {100 - salidaPct}%</span>
+                  <span className="text-emerald-400">{tr('Pinta Dominante:', 'Dominant Suit:')} {salidaPct}%</span>
+                  <span className="text-slate-400">{tr('Rival:', 'Opponents:')} {100 - salidaPct}%</span>
                 </div>
                 <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden flex">
                   <div className="bg-emerald-500 h-full transition-all duration-300" style={{ width: `${salidaPct}%` }} />
@@ -1295,7 +1314,7 @@ export const MatchSimulator: React.FC = () => {
             {/* Partner Signaling Section */}
             <div className="p-3 rounded-xl bg-slate-950/60 border border-white/[0.06] space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-200">Partner Signaling</span>
+                <span className="text-xs font-bold text-slate-200">{tr('Señales del Compañero', 'Partner Signals')}</span>
                 <span className="text-[11px] font-mono font-bold text-emerald-400">{partnerSignalingPct}%</span>
               </div>
               <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
@@ -1305,14 +1324,16 @@ export const MatchSimulator: React.FC = () => {
                 />
               </div>
               <p className="text-[10px] text-slate-400">
-                {partnerPassCount > 0 ? `Compañero pasó a ${partnerPassCount} número(s)` : 'Alineación táctica y lectura activa'}
+                {partnerPassCount > 0
+                  ? tr(`Compañero pasó a ${partnerPassCount} número(s)`, `Partner passed on ${partnerPassCount} suit(s)`)
+                  : tr('Alineación táctica y lectura activa', 'Tactical alignment & active read')}
               </p>
             </div>
 
             {/* Tranca Risk Section */}
             <div className="p-3 rounded-xl bg-slate-950/60 border border-white/[0.06] space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-200">Tranca Risk</span>
+                <span className="text-xs font-bold text-slate-200">{tr('Riesgo de Tranque', 'Lock Risk')}</span>
                 <span className={`text-[11px] font-mono font-bold ${tranqueRiskPct > 50 ? 'text-rose-400' : 'text-amber-400'}`}>
                   {tranqueRiskPct}%
                 </span>
@@ -1324,7 +1345,7 @@ export const MatchSimulator: React.FC = () => {
                 />
               </div>
               <p className="text-[10px] text-slate-400">
-                Puntas abiertas: [{boardEnds ? `${boardEnds[0]} : ${boardEnds[1]}` : 'Sin abrir'}]
+                {tr('Puntas abiertas:', 'Open ends:')} [{boardEnds ? `${boardEnds[0]} : ${boardEnds[1]}` : tr('Sin abrir', 'Waiting for lead')}]
               </p>
             </div>
 
@@ -1333,7 +1354,7 @@ export const MatchSimulator: React.FC = () => {
               <div className="p-3 rounded-xl bg-amber-950/30 border border-amber-500/40 text-amber-200 space-y-2">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-amber-400">
                   <Sparkles className="w-3.5 h-3.5" />
-                  <span>Doctrina Táctica</span>
+                  <span>{tr('Doctrina Táctica', 'Tactical Doctrine')}</span>
                 </div>
                 <p className="text-[11px] leading-relaxed text-slate-200">
                   {coachAdvice}
@@ -1372,7 +1393,7 @@ export const MatchSimulator: React.FC = () => {
                 className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-black/40 hover:bg-black/60 text-slate-300 border border-white/10 flex items-center gap-1.5 transition"
               >
                 <Settings2 className="w-3.5 h-3.5 text-amber-400" />
-                <span>Reglas</span>
+                <span>{tr('Reglas', 'Rules')}</span>
               </button>
             </div>
             <div className="flex items-center gap-1.5">
@@ -1383,9 +1404,9 @@ export const MatchSimulator: React.FC = () => {
                     ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
                     : 'bg-black/40 text-slate-400 border-white/10'
                 }`}
-                title="Mostrar qué jugador jugó cada ficha"
+                title={tr('Mostrar qué jugador jugó cada ficha', 'Show player badge on each tile')}
               >
-                Autor {showPlayerBadges ? 'ON' : 'OFF'}
+                {tr('Autor', 'Player')} {showPlayerBadges ? 'ON' : 'OFF'}
               </button>
               <button
                 onClick={() => setShowPlayOrder(!showPlayOrder)}
@@ -1394,9 +1415,9 @@ export const MatchSimulator: React.FC = () => {
                     ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
                     : 'bg-black/40 text-slate-400 border-white/10'
                 }`}
-                title="Mostrar orden numérico de jugadas"
+                title={tr('Mostrar orden numérico de jugadas', 'Show numeric play order')}
               >
-                Orden {showPlayOrder ? 'ON' : 'OFF'}
+                {tr('Orden', 'Order')} {showPlayOrder ? 'ON' : 'OFF'}
               </button>
             </div>
           </div>
@@ -1409,12 +1430,12 @@ export const MatchSimulator: React.FC = () => {
             <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-cyan-400 inline-block" />
             <Users className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
             <span>
-              Compañero • {hands[2].length} fichas
+              {tr('Compañero', 'Partner')} • {hands[2].length} {tr('fichas', 'tiles')}
               {gameOver && ` (${hands[2].reduce((s, [a, b]) => s + a + b, 0)} pts)`}
             </span>
             {salidorIndex === 2 && (
               <span className="px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 text-[9px] sm:text-[10px] font-black uppercase tracking-wider shadow border border-amber-600/40">
-                Salidor
+                {tr('Salidor', 'Leader')}
               </span>
             )}
           </div>
@@ -1440,9 +1461,9 @@ export const MatchSimulator: React.FC = () => {
           }`}>
             <div className="flex items-center gap-1 text-[10px] font-bold">
               <span className="w-2 h-2 rounded-full bg-orange-500 inline-block shrink-0" />
-              <span className="truncate">Rival Izq. ({hands[3].length})</span>
+              <span className="truncate">{tr('Rival Izq.', 'Left Rival')} ({hands[3].length})</span>
               {salidorIndex === 3 && (
-                <span className="px-1 rounded bg-amber-400 text-slate-950 text-[8px] font-black uppercase">Salidor</span>
+                <span className="px-1 rounded bg-amber-400 text-slate-950 text-[8px] font-black uppercase">{tr('Salidor', 'Leader')}</span>
               )}
             </div>
             <div className="flex flex-wrap justify-center gap-0.5">
@@ -1462,9 +1483,9 @@ export const MatchSimulator: React.FC = () => {
           }`}>
             <div className="flex items-center gap-1 text-[10px] font-bold">
               <span className="w-2 h-2 rounded-full bg-rose-500 inline-block shrink-0" />
-              <span className="truncate">Rival Der. ({hands[1].length})</span>
+              <span className="truncate">{tr('Rival Der.', 'Right Rival')} ({hands[1].length})</span>
               {salidorIndex === 1 && (
-                <span className="px-1 rounded bg-amber-400 text-slate-950 text-[8px] font-black uppercase">Salidor</span>
+                <span className="px-1 rounded bg-amber-400 text-slate-950 text-[8px] font-black uppercase">{tr('Salidor', 'Leader')}</span>
               )}
             </div>
             <div className="flex flex-wrap justify-center gap-0.5">
@@ -1489,12 +1510,12 @@ export const MatchSimulator: React.FC = () => {
               <span className="w-2 h-2 rounded-full bg-orange-500 inline-block shrink-0" />
               <User className="w-3 h-3 shrink-0" />
               <span>
-                Rival Izquierda ({hands[3].length})
+                {tr('Rival Izquierda', 'Left Rival')} ({hands[3].length})
                 {gameOver && ` • ${hands[3].reduce((s, [a, b]) => s + a + b, 0)} pts`}
               </span>
               {salidorIndex === 3 && (
                 <span className="px-1.5 py-0.2 rounded bg-amber-400 text-slate-950 text-[9px] font-black uppercase tracking-wider shadow border border-amber-600/40">
-                  Salidor
+                  {tr('Salidor', 'Leader')}
                 </span>
               )}
             </div>
@@ -1516,7 +1537,8 @@ export const MatchSimulator: React.FC = () => {
           <div className="flex-1 min-w-0 max-w-4xl mx-0 md:mx-4 p-2 sm:p-4 min-h-[240px] sm:min-h-[300px] flex flex-col items-center justify-center relative">
             {board.length === 0 ? (
               <div className="text-center text-emerald-200/50 text-xs font-mono">
-                La mesa está vacía. Esperando la salida de <b className="text-amber-400">{playerNames[salidorIndex]}</b>...
+                {tr('La mesa está vacía. Esperando la salida de', 'Board is empty. Waiting for the opening lead from')}{' '}
+                <b className="text-amber-400">{playerNames[salidorIndex]}</b>...
               </div>
             ) : (
               <div className="w-full flex justify-center py-2">
@@ -1573,27 +1595,46 @@ export const MatchSimulator: React.FC = () => {
                             transform: scale < 1 ? `scale(${scale})` : undefined,
                           }}
                         >
-                          {all.map((p, i) => {
-                            const badgeInfo = PLAYER_BADGES[p.playedBy];
-                            return (
+                          {/* Layer 1: Independent Contact Shadows */}
+                          <div data-testid="board-shadows-layer" className="absolute inset-0 pointer-events-none z-0">
+                            {all.map((p, i) => (
                               <div
                                 key={i}
-                                className="absolute"
-                                style={{ left: p.left - minX + 6, top: p.top - minY + 6 }}
-                              >
-                                <DominoTile
-                                  top={p.tile[0]}
-                                  bottom={p.tile[1]}
-                                  size="sm"
-                                  orientation={p.vertical ? 'vertical' : 'horizontal'}
-                                  className={i === 0 ? 'ring-2 ring-amber-400/70' : ''}
-                                  badge={showPlayerBadges ? badgeInfo.tag : undefined}
-                                  badgeColor={badgeInfo.color}
-                                  orderBadge={showPlayOrder ? p.playOrder : undefined}
-                                />
-                              </div>
-                            );
-                          })}
+                                className="absolute rounded-lg bg-black/70 blur-[6px] translate-y-[4px]"
+                                style={{
+                                  left: p.left - minX + 6,
+                                  top: p.top - minY + 6,
+                                  width: p.vertical ? TILE_SHORT : TILE_LONG,
+                                  height: p.vertical ? TILE_LONG : TILE_SHORT,
+                                }}
+                              />
+                            ))}
+                          </div>
+                          {/* Layer 2: Board Tiles */}
+                          <div data-testid="board-tiles-layer" className="relative z-10 w-full h-full">
+                            {all.map((p, i) => {
+                              const badgeInfo = playerBadges[p.playedBy];
+                              return (
+                                <div
+                                  key={i}
+                                  className="absolute"
+                                  style={{ left: p.left - minX + 6, top: p.top - minY + 6 }}
+                                >
+                                  <DominoTile
+                                    top={p.tile[0]}
+                                    bottom={p.tile[1]}
+                                    size="sm"
+                                    orientation={p.vertical ? 'vertical' : 'horizontal'}
+                                    className={i === 0 ? 'ring-2 ring-amber-400/70' : ''}
+                                    badge={showPlayerBadges ? badgeInfo.tag : undefined}
+                                    badgeColor={badgeInfo.color}
+                                    orderBadge={showPlayOrder ? p.playOrder : undefined}
+                                    boardMode
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1608,7 +1649,7 @@ export const MatchSimulator: React.FC = () => {
                 {passedSuits.map((list, i) =>
                   list.length > 0 ? (
                     <span key={i} className="px-2 py-0.5 rounded bg-red-950/80 text-red-300 border border-red-700/60">
-                      {playerNames[i]} pasó a: {list.join(', ')}
+                      {playerNames[i]} {tr('pasó a:', 'passed on:')} {list.join(', ')}
                     </span>
                   ) : null
                 )}
@@ -1620,14 +1661,22 @@ export const MatchSimulator: React.FC = () => {
                 <div className="text-xs sm:text-sm font-bold text-amber-300">{gameOver}</div>
                 {lastWinnerIndex !== null && (
                   <div className="text-[11px] sm:text-xs text-amber-100/90 font-medium">
-                    ⚡ <b>Próxima Salida:</b> Abre la mano <b className="text-amber-300 font-bold">{playerNames[lastWinnerIndex]}</b> (por haber ganado esta mano).
+                    {lang === 'en' ? (
+                      <>
+                        ⚡ <b>Next Lead:</b> <b className="text-amber-300 font-bold">{playerNames[lastWinnerIndex]}</b> opens the next hand (winner of this round).
+                      </>
+                    ) : (
+                      <>
+                        ⚡ <b>Próxima Salida:</b> Abre la mano <b className="text-amber-300 font-bold">{playerNames[lastWinnerIndex]}</b> (por haber ganado esta mano).
+                      </>
+                    )}
                   </div>
                 )}
                 <button
                   onClick={() => startNewRound()}
                   className="mt-2 px-5 py-1.5 text-xs font-bold rounded-lg bg-amber-400 text-slate-950 hover:bg-amber-300 transition shadow active:scale-95"
                 >
-                  Jugar Mano #{handNumber + 1}
+                  {tr(`Jugar Mano #${handNumber + 1}`, `Play Hand #${handNumber + 1}`)}
                 </button>
               </div>
             )}
@@ -1641,12 +1690,12 @@ export const MatchSimulator: React.FC = () => {
               <span className="w-2 h-2 rounded-full bg-rose-500 inline-block shrink-0" />
               <User className="w-3 h-3 shrink-0" />
               <span>
-                Rival Derecha ({hands[1].length})
+                {tr('Rival Derecha', 'Right Rival')} ({hands[1].length})
                 {gameOver && ` • ${hands[1].reduce((s, [a, b]) => s + a + b, 0)} pts`}
               </span>
               {salidorIndex === 1 && (
                 <span className="px-1.5 py-0.2 rounded bg-amber-400 text-slate-950 text-[9px] font-black uppercase tracking-wider shadow border border-amber-600/40">
-                  Salidor
+                  {tr('Salidor', 'Leader')}
                 </span>
               )}
             </div>
@@ -1675,14 +1724,17 @@ export const MatchSimulator: React.FC = () => {
             <User className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
             <span>
               {gameOver
-                ? `Mano terminada • Tú (${hands[0].length} fichas • ${hands[0].reduce((s, [a, b]) => s + a + b, 0)} pts)`
+                ? tr(
+                    `Mano terminada • Tú (${hands[0].length} fichas • ${hands[0].reduce((s, [a, b]) => s + a + b, 0)} pts)`,
+                    `Hand finished • You (${hands[0].length} tiles • ${hands[0].reduce((s, [a, b]) => s + a + b, 0)} pts)`
+                  )
                 : turn === 0
-                ? '¡Tu Turno de Jugar!'
-                : `Esperando turno de ${playerNames[turn]}...`}
+                ? tr('¡Tu Turno de Jugar!', 'Your Turn to Play!')
+                : tr(`Esperando turno de ${playerNames[turn]}...`, `Waiting for ${playerNames[turn]}...`)}
             </span>
             {salidorIndex === 0 && (
               <span className="px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 text-[9px] sm:text-[10px] font-black uppercase tracking-wider shadow border border-amber-600/40">
-                Salidor
+                {tr('Salidor', 'Leader')}
               </span>
             )}
           </div>
@@ -1726,25 +1778,25 @@ export const MatchSimulator: React.FC = () => {
             {turn === 0 && pendingTile && boardEnds && !gameOver && (
               <div className="w-full flex flex-wrap items-center justify-center gap-2 sm:gap-3 pt-2">
                 <span className="text-xs text-slate-300">
-                  [{pendingTile[0]}:{pendingTile[1]}] ¿por qué punta?
+                  [{pendingTile[0]}:{pendingTile[1]}] {tr('¿por qué punta?', 'which end?')}
                 </span>
                 <button
                   onClick={() => makePlay(0, pendingTile, 'left')}
                   className="px-3 py-1.5 bg-amber-400 text-slate-950 font-bold text-xs rounded-lg active:scale-95"
                 >
-                  Izquierda ({boardEnds[0]})
+                  {tr('Izquierda', 'Left')} ({boardEnds[0]})
                 </button>
                 <button
                   onClick={() => makePlay(0, pendingTile, 'right')}
                   className="px-3 py-1.5 bg-amber-400 text-slate-950 font-bold text-xs rounded-lg active:scale-95"
                 >
-                  Derecha ({boardEnds[1]})
+                  {tr('Derecha', 'Right')} ({boardEnds[1]})
                 </button>
                 <button
                   onClick={() => setPendingTile(null)}
                   className="px-3 py-1.5 bg-slate-800 text-slate-300 text-xs rounded-lg active:scale-95"
                 >
-                  Cancelar
+                  {tr('Cancelar', 'Cancel')}
                 </button>
               </div>
             )}
@@ -1754,7 +1806,7 @@ export const MatchSimulator: React.FC = () => {
                 onClick={() => handlePass(0)}
                 className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-xl shadow-lg transition active:scale-95"
               >
-                Paso Obligado
+                {tr('Paso Obligado', 'Forced Pass')}
               </button>
             )}
           </div>
@@ -1772,7 +1824,7 @@ export const MatchSimulator: React.FC = () => {
               }`}
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span>{isCoachActive ? 'Coach Activo' : 'Coach Oculto'}</span>
+              <span>{isCoachActive ? tr('Coach Activo', 'Coach Active') : tr('Coach Oculto', 'Coach Hidden')}</span>
             </button>
           </div>
 
@@ -1783,36 +1835,40 @@ export const MatchSimulator: React.FC = () => {
               </span>
             )}
             <span className="px-3 py-1.5 rounded-xl bg-black/40 border border-white/10 text-amber-300 text-[11px] font-mono font-bold backdrop-blur-md">
-              Mano #{handNumber}
+              {tr('Mano #', 'Hand #')}{handNumber}
             </span>
             <button
               onClick={() => startNewRound()}
               className="px-3.5 py-1.5 text-xs font-bold rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 flex items-center gap-1.5 shadow-md shadow-amber-500/20 transition active:scale-95"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>Nueva Mano</span>
+              <span>{tr('Nueva Mano', 'New Hand')}</span>
             </button>
           </div>
         </div>
       </div>
 
-    {/* RIGHT HUD: 28-Tile Probability Matrix */}
+    {/* RIGHT HUD: Matriz de Probabilidad (28 Fichas) */}
     <div className="xl:col-span-3 flex flex-col gap-3 order-3">
       <div className="p-4 rounded-2xl glass-panel-elevated space-y-4">
         <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
           <div>
-            <h3 className="text-sm font-black text-white tracking-wide">28-Tile Probability Matrix</h3>
-            <p className="text-[10px] text-slate-400">Tracker in lowest 28-Tile</p>
+            <h3 className="text-sm font-black text-white tracking-wide">
+              {tr('Matriz de Probabilidad (28 Fichas)', 'Probability Matrix (28 Tiles)')}
+            </h3>
+            <p className="text-[10px] text-slate-400">
+              {tr('Rastreo en vivo de las 28 fichas', 'Live tracking of all 28 tiles')}
+            </p>
           </div>
         </div>
 
         {/* Legend */}
         <div className="grid grid-cols-2 gap-2 text-center text-[10px] font-bold">
           <div className="py-1 px-2 rounded-lg bg-emerald-950/60 text-emerald-300 border border-emerald-500/40">
-            Emerald: {unplayedCount} Libres
+            {tr('Verdes:', 'Green:')} {unplayedCount} {tr('Libres', 'Free')}
           </div>
           <div className="py-1 px-2 rounded-lg bg-amber-950/60 text-amber-300 border border-amber-500/40">
-            Amber: {totalPlayedCount + hands[0].length} Vistas
+            {tr('Ámbar:', 'Amber:')} {totalPlayedCount + hands[0].length} {tr('Vistas', 'Seen')}
           </div>
         </div>
 
@@ -1833,7 +1889,13 @@ export const MatchSimulator: React.FC = () => {
                 return (
                   <div
                     key={j}
-                    title={`[${i}:${j}] ${isOnBoard ? 'En Mesa' : isInHand ? 'En Tu Mano' : 'Oculta / Por Salir'}`}
+                    title={`[${i}:${j}] ${
+                      isOnBoard
+                        ? tr('En Mesa', 'On Board')
+                        : isInHand
+                        ? tr('En Tu Mano', 'In Your Hand')
+                        : tr('Oculta / Por Salir', 'Unplayed / Hidden')
+                    }`}
                     className={`h-5 rounded flex items-center justify-center font-mono text-[9px] font-black transition-all ${
                       isInHand
                         ? 'bg-amber-400 text-slate-950 ring-1 ring-amber-300 shadow-sm'
@@ -1853,15 +1915,15 @@ export const MatchSimulator: React.FC = () => {
         {/* Card Counting Metrics */}
         <div className="p-3 rounded-xl bg-slate-950/60 border border-white/[0.06] space-y-2 text-xs">
           <div className="flex justify-between items-center text-slate-300">
-            <span>Card Counting (Libres):</span>
+            <span>{tr('Conteo de Fichas (Libres):', 'Tile Count (Unplayed):')}</span>
             <span className="font-mono font-bold text-white">{unplayedCount} / 28</span>
           </div>
           <div className="flex justify-between items-center text-slate-300">
-            <span>Neon Emerald Tracker:</span>
-            <span className="font-mono font-bold text-emerald-400">Activo</span>
+            <span>{tr('Rastreador Esmeralda:', 'Emerald Tracker:')}</span>
+            <span className="font-mono font-bold text-emerald-400">{tr('Activo', 'Active')}</span>
           </div>
           <div className="flex justify-between items-center text-slate-300">
-            <span>Puntos en Tu Mano:</span>
+            <span>{tr('Puntos en Tu Mano:', 'Pips in Your Hand:')}</span>
             <span className="font-mono font-bold text-amber-400">{hands[0].reduce((s, [a, b]) => s + a + b, 0)} pts</span>
           </div>
           <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden mt-1">
